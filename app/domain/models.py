@@ -3,6 +3,21 @@
 from pydantic import BaseModel, Field
 
 
+class PageItem(BaseModel):
+    """A single item (row) within a page's answer list.
+
+    For rank-based pages: rank is the 1-based position, key is the player/team name,
+    stat_value is the numeric stat (e.g. TDs, yards), stat_label names the stat.
+    For year-based pages: rank is None, key is the year (as string), stat_value is None.
+    """
+
+    rank: int | None = None        # 1-based rank for rank-ordered lists; None for year lists
+    key: str = ""                  # The clue key: year string or rank label ("#1", "2024", etc.)
+    name: str = ""                 # Player / team name — the answer to reveal
+    stat_value: str = ""           # Numeric stat (e.g. "157", "1,846") as string; "" if N/A
+    stat_label: str = ""           # Human-readable stat name (e.g. "TDs", "rushing yards")
+
+
 class Page(BaseModel):
     """A single row in a book's spreadsheet, identified by a QR-code-scanned page_id."""
 
@@ -12,6 +27,10 @@ class Page(BaseModel):
     description: str = ""
     type: str = "list"
     clue_style: str = ""
+    clue_type: str = ""            # "rank" | "year" | "team" | "matchup" | ""
+    item_count: int = 0            # Number of items on this page
+    stat_label: str = ""           # Canonical stat label for this page ("TDs", "rushing yards", …)
+    items: list[PageItem] = []     # Ordered list of items; populated from Answer sheet or scrape
 
 
 class Book(BaseModel):
