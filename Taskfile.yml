@@ -1,15 +1,23 @@
 version: '3'
 
+# NOTE: Ollama must be running separately before starting the API.
+# Install Ollama from https://ollama.com and run: ollama pull llama3.2
+
 tasks:
-  api:
-    desc: Start the FastAPI backend server
+  install:
+    desc: Install Python dependencies (including dev tools)
     cmds:
-      - poetry run uvicorn app.main:app --port 8000 --reload
+      - poetry install
+
+  api:
+    desc: Start the FastAPI backend server on :8000
+    cmds:
+      - poetry run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
   ui:
-    desc: Start the Streamlit frontend application
+    desc: Start the Streamlit frontend on :8501
     cmds:
-      - poetry run streamlit run app/app.py
+      - poetry run streamlit run app/app.py --server.port 8501
 
   dev:
     desc: Run both the API and UI concurrently
@@ -19,6 +27,12 @@ tasks:
     desc: Run the unit test suite
     cmds:
       - poetry run pytest tests/ -v
+
+  lint:
+    desc: Run Ruff linter and formatter check
+    cmds:
+      - poetry run ruff check .
+      - poetry run ruff format --check .
 
   stop:
     desc: Stop the API and UI processes
