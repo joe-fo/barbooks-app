@@ -15,6 +15,11 @@ tasks:
     desc: Run both the API and UI concurrently
     deps: [api, ui]
 
+  test:
+    desc: Run the unit test suite
+    cmds:
+      - poetry run pytest tests/ -v
+
   stop:
     desc: Stop the API and UI processes
     cmds:
