@@ -1,0 +1,11 @@
+:80 {
+    # Route /api/* requests to the FastAPI backend
+    handle_path /api/* {
+        reverse_proxy api:8000
+    }
+
+    # Route all other requests to the Streamlit frontend
+    handle {
+        reverse_proxy ui:8501
+    }
+}

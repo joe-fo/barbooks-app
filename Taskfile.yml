@@ -1,0 +1,22 @@
+version: '3'
+
+tasks:
+  api:
+    desc: Start the FastAPI backend server
+    cmds:
+      - poetry run uvicorn app.main:app --port 8000 --reload
+
+  ui:
+    desc: Start the Streamlit frontend application
+    cmds:
+      - poetry run streamlit run app/app.py
+
+  dev:
+    desc: Run both the API and UI concurrently
+    deps: [api, ui]
+
+  stop:
+    desc: Stop the API and UI processes
+    cmds:
+      - pkill -f "uvicorn app.main:app" || true
+      - pkill -f "streamlit run" || true

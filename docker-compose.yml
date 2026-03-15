@@ -1,0 +1,43 @@
+services:
+  api:
+    build: .
+    container_name: barbooks_api
+    command: poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434/api/generate}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  ui:
+    build: .
+    container_name: barbooks_ui
+    command: poetry run streamlit run app/app.py --server.port 8501 --server.address 0.0.0.0
+    environment:
+      - API_URL=http://api:8000/api/v1/chat
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: barbooks_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - ui
+
+volumes:
+  caddy_data:
+  caddy_config:
