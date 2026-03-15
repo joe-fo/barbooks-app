@@ -1,42 +1,65 @@
-import httpx
-from typing import Optional
-
+"""LLM service layer using hexagonal architecture (port/adapter pattern)."""
 import os
+from abc import ABC, abstractmethod
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
-DEFAULT_MODEL = "llama3.2" # You can configure this to the specific model you have installed
+import httpx
+
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+
+
+class LLMPort(ABC):
+    """Port (interface) for the LLM service. Decouples core logic from any specific model."""
+
+    @abstractmethod
+    async def generate_answer(self, context: str, user_message: str) -> str:
+        """Generate an answer given page context and the user's question."""
+
+
+class OllamaAdapter(LLMPort):
+    """Adapter that calls a local Ollama instance via /api/chat."""
+
+    def __init__(self, base_url: str = OLLAMA_URL, model: str = DEFAULT_MODEL) -> None:
+        self._base_url = base_url
+        self._model = model
+
+    async def generate_answer(self, context: str, user_message: str) -> str:
+        system_prompt = (
+            "You are a terse trivia assistant. "
+            "Answer using ONLY the information in the provided context. "
+            "Your reply MUST be one of: 'Yes', 'No', or 'Correct!' followed by at most one short sentence. "
+            "Do NOT explain. Do NOT add extra information. "
+            "If the answer is not in the context, reply 'I don't know.'\n\n"
+            f"Context:\n---\n{context}\n---"
+        )
+
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            "stream": False,
+            "options": {
+                "num_predict": 50,   # mechanically cap response length
+                "temperature": 0.0,  # deterministic responses
+            },
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self._base_url, json=payload, timeout=30.0)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("message", {}).get("content", "").strip()
+        except Exception as e:
+            return f"Error connecting to local LLM: {e}"
+
+
+# Module-level default adapter — main.py calls this convenience wrapper.
+_default_adapter: LLMPort = OllamaAdapter()
+
 
 async def generate_llm_answer(context: str, user_message: str) -> str:
-    """
-    Calls the local Ollama LLM to generate an answer based on the provided context.
-    Enforces strict prompting length constraints.
-    """
-    
-    system_prompt = f"""You are a helpful but extremely terse trivia assistant.
-You are given the following context from a book:
----
-{context}
----
-Answer the user's question using ONLY the provided answers.
-Your response MUST be no more than 2 sentences. DO NOT explain yourself.
-The user is trying to answer a trivia question. Format your response accordingly.
-"""
-
-    payload = {
-        "model": DEFAULT_MODEL,
-        "prompt": f"{system_prompt}\n\nUser Question: {user_message}\nAnswer:",
-        "stream": False,
-        "options": {
-            "num_predict": 50, # mechanically restrict response length
-            "temperature": 0.0 # deterministic responses
-        }
-    }
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(OLLAMA_URL, json=payload, timeout=30.0)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("response", "").strip()
-    except Exception as e:
-        return f"Error connecting to local LLM: {str(e)}"
+    """Convenience wrapper used by the FastAPI endpoint."""
+    return await _default_adapter.generate_answer(context, user_message)
