@@ -7,7 +7,7 @@ API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1/chat")
 
 st.set_page_config(page_title="Barbooks AI", page_icon="🏈")
 st.title("Barbooks AI Agent 🏈")
-st.write("Ask questions about NFL Touchdown Leaders! (Context: `book_id=nfl`, `page_id=touchdown`)")
+st.write("Ask questions about NFL Touchdown Leaders! (Context: `book_id=nfl`, `page_id=9`)")
 
 # Initialize chat history
 if "messages" not in st.session_state:
@@ -29,7 +29,7 @@ if prompt := st.chat_input("Ask about the list... (e.g. 'Is Tom Brady on this li
     payload = {
         "user_message": prompt,
         "book_id": "nfl",
-        "page_id": "touchdown"
+        "page_id": "9"
     }
 
     try:
