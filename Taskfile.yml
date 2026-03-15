@@ -26,7 +26,12 @@ tasks:
   test:
     desc: Run the unit test suite
     cmds:
-      - poetry run pytest tests/ -v
+      - poetry run pytest tests/ -v --ignore=tests/integration
+
+  test-integration:
+    desc: Run the integration test suite (Ollama stubbed at HTTP boundary, no server required)
+    cmds:
+      - poetry run pytest tests/integration/ -v
 
   lint:
     desc: Run Ruff linter and formatter check
