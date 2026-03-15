@@ -1,12 +1,13 @@
+import logging
 import os
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
+
+from . import mock_db, spreadsheet_store
 from .domain import ChatRequest, ChatResponse
 from .llm_service import generate_llm_answer
 from .scraper import fetch_url_text
-from . import mock_db
-from . import spreadsheet_store
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,9 @@ _context_cache: dict[tuple[str, str], str] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load spreadsheet data and pre-fetch all page contexts on startup."""
-    logger.info("Startup: loading book/page data from spreadsheets in '%s'...", BOOKS_DIR)
+    logger.info(
+        "Startup: loading book/page data from spreadsheets in '%s'...", BOOKS_DIR
+    )
     spreadsheet_store.load_books(BOOKS_DIR)
 
     pages = spreadsheet_store.all_pages()
@@ -48,7 +51,9 @@ async def chat_endpoint(request: ChatRequest):
     logger.info("Received request: %s", request)
 
     # 1. Attempt deterministic short-circuit before hitting the LLM
-    det_answer = mock_db.deterministic_match(request.book_id, request.page_id, request.user_message)
+    det_answer = mock_db.deterministic_match(
+        request.book_id, request.page_id, request.user_message
+    )
     if det_answer:
         return ChatResponse(answer=det_answer, source="deterministic")
 

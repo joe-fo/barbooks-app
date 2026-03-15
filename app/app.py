@@ -1,7 +1,7 @@
-import streamlit as st
-import httpx
-
 import os
+
+import httpx
+import streamlit as st
 
 API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1/chat")
 
@@ -42,22 +42,28 @@ if prompt := st.chat_input("Ask a question about this page..."):
 
     try:
         response = httpx.post(API_URL, json=payload, timeout=30.0)
-        
+
         if response.status_code == 200:
             data = response.json()
             answer = data.get("answer", "No answer returned.")
             source = data.get("source", "unknown")
-            
+
             out_msg = f"{answer} *(Source: {source})*"
             # Display assistant response
             with st.chat_message("assistant"):
                 st.markdown(out_msg)
-            
+
             messages.append({"role": "assistant", "content": out_msg})
         elif response.status_code == 422:
-            st.error("Input validation failed. Make sure your message is under 150 characters.")
+            st.error(
+                "Input validation failed."
+                " Make sure your message is under 150 characters."
+            )
         else:
             st.error(f"Error from server: {response.text}")
-            
+
     except httpx.RequestError as exc:
-        st.error(f"An error occurred while requesting {exc.request.url!r}. Is the FastAPI backend running?")
+        st.error(
+            f"An error occurred while requesting {exc.request.url!r}."
+            " Is the FastAPI backend running?"
+        )

@@ -1,4 +1,5 @@
 """Loads book/page data from spreadsheets in the books/ directory."""
+
 import os
 from typing import Optional
 

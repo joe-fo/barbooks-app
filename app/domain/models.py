@@ -1,4 +1,5 @@
 """Canonical domain models for Barbooks."""
+
 from pydantic import BaseModel, Field
 
 
@@ -36,7 +37,10 @@ class ChatResponse(BaseModel):
 
 
 class QRCodeRef(BaseModel):
-    """The structured reference encoded in a QR code — maps to a specific (book_id, page_id)."""
+    """The structured reference encoded in a QR code.
+
+    Maps to a specific (book_id, page_id).
+    """
 
     book_id: str
     page_id: str

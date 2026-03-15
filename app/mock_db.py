@@ -10,7 +10,10 @@ RULES_DB: dict[tuple[str, str], list[tuple[str, str]]] = {
     ("nfl", "9"): [
         (r"(?i)\brandy\s*moss\b", "Yes, Randy Moss is 4th on the list with 157 TD's."),
         (r"(?i)\bjerry\s*rice\b", "Yes, Jerry Rice is 1st on the list with 208 TD's."),
-        (r"(?i)\bemmitt\s*smith\b", "Yes, Emmitt Smith is 2nd on the list with 175 TD's."),
+        (
+            r"(?i)\bemmitt\s*smith\b",
+            "Yes, Emmitt Smith is 2nd on the list with 175 TD's.",
+        ),  # noqa: E501
         (r"(?i)\btom\s*brady\b", "No, Tom Brady is not on this list."),
     ]
 }
@@ -31,5 +34,9 @@ def deterministic_match(book_id: str, page_id: str, user_message: str) -> Option
 class DeterministicAnswerSource(AnswerSource):
     """AnswerSource adapter wrapping the regex-based deterministic short-circuit."""
 
-    async def answer(self, request: ChatRequest, page: Page, context: str) -> Optional[str]:
-        return deterministic_match(request.book_id, request.page_id, request.user_message)
+    async def answer(
+        self, request: ChatRequest, page: Page, context: str
+    ) -> Optional[str]:
+        return deterministic_match(
+            request.book_id, request.page_id, request.user_message
+        )
