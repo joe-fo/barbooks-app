@@ -1,29 +1,23 @@
 """LLM service layer using hexagonal architecture (port/adapter pattern)."""
 import os
-from abc import ABC, abstractmethod
+from typing import Optional
 
 import httpx
+
+from .domain import AnswerSource, ChatRequest, Page
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
 
-class LLMPort(ABC):
-    """Port (interface) for the LLM service. Decouples core logic from any specific model."""
-
-    @abstractmethod
-    async def generate_answer(self, context: str, user_message: str) -> str:
-        """Generate an answer given page context and the user's question."""
-
-
-class OllamaAdapter(LLMPort):
-    """Adapter that calls a local Ollama instance via /api/chat."""
+class OllamaAdapter(AnswerSource):
+    """AnswerSource adapter that calls a local Ollama instance via /api/chat."""
 
     def __init__(self, base_url: str = OLLAMA_URL, model: str = DEFAULT_MODEL) -> None:
         self._base_url = base_url
         self._model = model
 
-    async def generate_answer(self, context: str, user_message: str) -> str:
+    async def answer(self, request: ChatRequest, page: Page, context: str) -> Optional[str]:
         system_prompt = (
             "You are a terse trivia assistant. "
             "Answer using ONLY the information in the provided context. "
@@ -37,7 +31,7 @@ class OllamaAdapter(LLMPort):
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
+                {"role": "user", "content": request.user_message},
             ],
             "stream": False,
             "options": {
@@ -51,15 +45,19 @@ class OllamaAdapter(LLMPort):
                 response = await client.post(self._base_url, json=payload, timeout=30.0)
                 response.raise_for_status()
                 data = response.json()
-                return data.get("message", {}).get("content", "").strip()
+                return data.get("message", {}).get("content", "").strip() or None
         except Exception as e:
             return f"Error connecting to local LLM: {e}"
 
 
-# Module-level default adapter — main.py calls this convenience wrapper.
-_default_adapter: LLMPort = OllamaAdapter()
+# Module-level default adapter — main.py uses this convenience wrapper.
+_default_adapter: AnswerSource = OllamaAdapter()
 
 
 async def generate_llm_answer(context: str, user_message: str) -> str:
-    """Convenience wrapper used by the FastAPI endpoint."""
-    return await _default_adapter.generate_answer(context, user_message)
+    """Convenience wrapper used by the FastAPI endpoint (backward-compatible)."""
+    from .domain.models import ChatRequest as _ChatRequest, Page as _Page
+    req = _ChatRequest(user_message=user_message, book_id="", page_id="")
+    page = _Page(page_id="", url="")
+    result = await _default_adapter.answer(req, page, context)
+    return result or ""

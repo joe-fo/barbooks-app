@@ -1,16 +1,19 @@
 """Loads book/page data from spreadsheets in the books/ directory."""
 import os
-import pandas as pd
 from typing import Optional
 
-# In-memory store: book_id -> page_id (str) -> page config dict
-_page_db: dict[str, dict[str, dict]] = {}
+import pandas as pd
+
+from .domain import Book, Page
+
+# In-memory store: book_id -> Book
+_books: dict[str, Book] = {}
 
 
 def load_books(books_dir: str) -> None:
-    """Scan books_dir for subdirectories, load xlsx files into _page_db."""
-    global _page_db
-    _page_db = {}
+    """Scan books_dir for subdirectories, load xlsx files into _books."""
+    global _books
+    _books = {}
 
     if not os.path.isdir(books_dir):
         return
@@ -28,10 +31,10 @@ def load_books(books_dir: str) -> None:
 
 
 def _load_book(book_id: str, xlsx_path: str) -> None:
-    """Load a single book's xlsx file (Pages sheet) into _page_db."""
+    """Load a single book's xlsx file (Pages sheet) into _books."""
     df = pd.read_excel(xlsx_path, sheet_name="Pages", header=3)
 
-    pages: dict[str, dict] = {}
+    pages: dict[str, Page] = {}
     for _, row in df.iterrows():
         page_num = row.get("Page #")
         url = row.get("Answer Key URL")
@@ -40,34 +43,40 @@ def _load_book(book_id: str, xlsx_path: str) -> None:
             continue
 
         page_id = str(int(page_num))
-        pages[page_id] = {
-            "url": str(url),
-            "title": str(row.get("Title", "")),
-            "description": str(row.get("Description", "")),
-            "type": str(row.get("Type", "list")),
-            "clue_style": str(row.get("# Items / Clue Style", "")),
-        }
+        pages[page_id] = Page(
+            page_id=page_id,
+            url=str(url),
+            title=str(row.get("Title", "")),
+            description=str(row.get("Description", "")),
+            type=str(row.get("Type", "list")),
+            clue_style=str(row.get("# Items / Clue Style", "")),
+        )
 
-    _page_db[book_id] = pages
+    _books[book_id] = Book(id=book_id, pages=pages)
+
+
+def get_book(book_id: str) -> Optional[Book]:
+    """Return the Book for a given book_id, or None if not found."""
+    return _books.get(book_id)
+
+
+def get_page(book_id: str, page_id: str) -> Optional[Page]:
+    """Return the Page for a given (book_id, page_id), or None if not found."""
+    book = _books.get(book_id)
+    return book.pages.get(page_id) if book else None
 
 
 def get_page_url(book_id: str, page_id: str) -> Optional[str]:
     """Return the Answer Key URL for a given (book_id, page_id)."""
-    page = _page_db.get(book_id, {}).get(page_id)
-    return page["url"] if page else None
-
-
-def get_page_config(book_id: str, page_id: str) -> Optional[dict]:
-    """Return full page config for a given (book_id, page_id)."""
-    return _page_db.get(book_id, {}).get(page_id)
+    page = get_page(book_id, page_id)
+    return page.url if page else None
 
 
 def all_pages() -> list[tuple[str, str, str]]:
     """Return list of (book_id, page_id, url) for all loaded pages."""
     result = []
-    for book_id, pages in _page_db.items():
-        for page_id, config in pages.items():
-            url = config.get("url", "")
-            if url:
-                result.append((book_id, page_id, url))
+    for book_id, book in _books.items():
+        for page_id, page in book.pages.items():
+            if page.url:
+                result.append((book_id, page_id, page.url))
     return result

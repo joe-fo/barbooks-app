@@ -1,7 +1,7 @@
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from pydantic import BaseModel, Field
+from .domain import ChatRequest, ChatResponse
 from .llm_service import generate_llm_answer
 from .scraper import fetch_url_text
 from . import mock_db
@@ -41,17 +41,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Barbooks API PoC", lifespan=lifespan)
-
-
-class ChatRequest(BaseModel):
-    user_message: str = Field(..., max_length=150, description="The user's query")
-    book_id: str = Field(..., description="ID of the book")
-    page_id: str = Field(..., description="ID of the target page")
-
-
-class ChatResponse(BaseModel):
-    answer: str
-    source: str
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
