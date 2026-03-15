@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from . import mock_db, spreadsheet_store
+from .admin import router as admin_router
 from .domain import ChatRequest, ChatResponse
 from .llm_service import generate_llm_answer
 from .scraper import fetch_url_text
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Barbooks API PoC", lifespan=lifespan)
+app.include_router(admin_router)
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
