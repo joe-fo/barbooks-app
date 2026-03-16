@@ -74,12 +74,19 @@ async def page_info(book_id: str, page_id: str):
 async def chat_endpoint(request: ChatRequest):
     logger.info("Received request: %s", request)
 
+    # Fetch page items for source data logging.
+    # TODO: Remove this temporary instrumentation once proper observability is in place
+    # (e.g. Logfire/pydantic-ai tracing evaluated in ba-18x).
+    page = spreadsheet_store.get_page(request.book_id, request.page_id)
+    page_items = page.items if page else []
+
     # 1. Attempt deterministic short-circuit before hitting the LLM
     det_answer = mock_db.deterministic_match(
         request.book_id, request.page_id, request.user_message
     )
     if det_answer:
         response = ChatResponse(answer=det_answer, source="deterministic")
+        logger.info("source_data=%s response=%s", page_items, response.answer)
         logger.info("Returning response: %s", response.model_dump_json())
         return response
 
@@ -93,6 +100,7 @@ async def chat_endpoint(request: ChatRequest):
                 answer="I don't have any information for that book or page.",
                 source="system",
             )
+            logger.info("source_data=%s response=%s", page_items, response.answer)
             logger.info("Returning response: %s", response.model_dump_json())
             return response
         context = await fetch_url_text(target_url)
@@ -102,6 +110,7 @@ async def chat_endpoint(request: ChatRequest):
                 answer="I encountered an error trying to read the book's context.",
                 source="system",
             )
+            logger.info("source_data=%s response=%s", page_items, response.answer)
             logger.info("Returning response: %s", response.model_dump_json())
             return response
         _context_cache[key] = context
@@ -109,5 +118,6 @@ async def chat_endpoint(request: ChatRequest):
     # 3. Fallback to LLM
     llm_answer = await generate_llm_answer(context, request.user_message)
     response = ChatResponse(answer=llm_answer, source="llm")
+    logger.info("source_data=%s response=%s", page_items, response.answer)
     logger.info("Returning response: %s", response.model_dump_json())
     return response
