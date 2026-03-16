@@ -1,0 +1,13 @@
+.git
+*.md
+tests/
+docs/
+books/
+eval_models.py
+cache/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.env
+*.env
