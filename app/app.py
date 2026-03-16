@@ -1,7 +1,53 @@
 import os
+from typing import Any
 
 import httpx
 import streamlit as st
+
+
+def format_answer_key(answer: dict[str, Any]) -> str:
+    """Format an AnswerKey dict as a numbered human-readable list.
+
+    Input: {"items": [{"rank": 1, "name": "Eli Manning", "stat": "57,023 yds"}, ...]}
+    Output: "1. Eli Manning — 57,023 yds\n2. Donovan McNabb — 36,250 yds\n..."
+    """
+    items = answer.get("items", [])
+    lines = []
+    for item in items:
+        rank = item.get("rank", "?")
+        name = item.get("name", "")
+        stat = item.get("stat", "")
+        line = f"{rank}. {name}"
+        if stat:
+            line += f" \u2014 {stat}"
+        lines.append(line)
+    return "\n".join(lines) if lines else "No answer key available."
+
+
+def format_line_item(answer: dict[str, Any]) -> str:
+    """Format a LineItemAnswer dict as a human-readable string.
+
+    Input: {"rank": 1, "name": "Eli Manning", "stat": "57,023 yds", "correct": true}
+    Output: "#1: Eli Manning — 57,023 yds"
+    """
+    rank = answer.get("rank", "?")
+    name = answer.get("name", "")
+    stat = answer.get("stat", "")
+    result = f"#{rank}: {name}"
+    if stat:
+        result += f" \u2014 {stat}"
+    return result
+
+
+def render_answer(answer: Any) -> str:
+    """Convert an API answer value to a displayable string."""
+    if isinstance(answer, dict):
+        if "items" in answer:
+            return format_answer_key(answer)
+        if "rank" in answer and "name" in answer:
+            return format_line_item(answer)
+    return str(answer) if answer is not None else "No answer returned."
+
 
 API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1/chat")
 _API_BASE = API_URL.removesuffix("/api/v1/chat")
@@ -85,7 +131,7 @@ if prompt := st.chat_input("Ask a question about this page..."):
 
         if response.status_code == 200:
             data = response.json()
-            answer = data.get("answer", "No answer returned.")
+            answer = render_answer(data.get("answer"))
             source = data.get("source", "unknown")
 
             out_msg = f"{answer} *(Source: {source})*"
