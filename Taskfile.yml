@@ -44,6 +44,12 @@ tasks:
       - poetry run ruff check .
       - poetry run ruff format --check .
 
+  cache:clear:
+    desc: Clear the local page cache (cache/pages/)
+    cmds:
+      - rm -rf cache/pages/
+      - echo "Page cache cleared."
+
   stop:
     desc: Stop the API and UI processes
     cmds:

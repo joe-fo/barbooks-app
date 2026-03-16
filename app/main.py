@@ -5,12 +5,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from . import mock_db, spreadsheet_store
+from . import mock_db, page_cache, spreadsheet_store
 from .admin import router as admin_router
 from .domain import AnswerKey, ChatRequest, ChatResponse, LineItemAnswer
 from .llm_service import generate_llm_answer
 from .question_patterns import QuestionIntent, classify_question
-from .scraper import fetch_url_content, fetch_url_text
+from .scraper import fetch_url_text
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ async def lifespan(app: FastAPI):
     for book_id, page_id, url in pages:
         key = (book_id, page_id)
         logger.info("Fetching context for (%s, %s) from %s", book_id, page_id, url)
-        text, items = await fetch_url_content(url)
-        if text.startswith("Error"):
+        text, items = await page_cache.get_or_fetch(book_id, page_id, url)
+        if text.startswith("Error") or not text:
             logger.warning("Failed to pre-load context for %s: %s", key, text)
         else:
             _context_cache[key] = text
