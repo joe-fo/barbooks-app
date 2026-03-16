@@ -1,7 +1,7 @@
 version: '3'
 
 # NOTE: Ollama must be running separately before starting the API.
-# Install Ollama from https://ollama.com and run: ollama pull llama3.2
+# Install Ollama from https://ollama.com and run: ollama pull phi3:mini
 
 tasks:
   install:

@@ -1,3 +1,123 @@
+# LLM Model Evaluation for Trivia Q&A Accuracy
+
+**Question:** Which Ollama model best handles structured trivia rank/lookup queries
+without hallucinating or misusing "Correct!" on non-guess queries?
+
+**Verdict: Switch default to `phi3:mini` — same disk footprint as llama3.2, passes 8/8
+test cases vs 7/8, and eliminates the "Correct!" misuse failure mode.**
+
+---
+
+## Background
+
+The barbooks trivia bot uses a local Ollama LLM as a fallback when the deterministic
+short-circuit layer cannot answer a query. The original default (`llama3.2`) was
+hallucinating and misinterpreting structured questions. This evaluation identifies a
+better model for the use case.
+
+## Evaluation Methodology
+
+Eight test cases targeting the three reported failure modes:
+
+| Test | Query | Correct Answer |
+|------|-------|----------------|
+| rank_lookup_6 | "Who is #6 on the list?" | Marcus Allen (145 TDs) |
+| rank_lookup_10 | "Who is number 10?" | Derrick Henry (127 TDs) |
+| rank_lookup_1 | "Who is #1?" | Jerry Rice (208 TDs) |
+| existence_not_on_list | "Is Tom Brady on this list?" | No |
+| existence_on_list | "Is Randy Moss on this list?" | Yes (#4, 157 TDs) |
+| no_correct_on_question | "What rank is Jerry Rice?" | "1" — must NOT say "Correct!" |
+| hallucination_guard | "Is Patrick Mahomes on this list?" | No (not in top 20) |
+| reverse_rank_lookup | "What rank is LaDainian Tomlinson?" | Rank 3 — must NOT say "Correct!" |
+
+Context: ESPN NFL All-Time TD Leaders (real fetched content). System prompt is the
+production prompt from `llm_service.py`. `num_predict=50`, `temperature=0.0`.
+
+## Results
+
+| Model | Score | Warm Avg Latency | Size | Notes |
+|-------|-------|------------------|------|-------|
+| **phi3:mini** | **8/8 (100%)** | **~1.3s** | 2.2 GB | **RECOMMENDED** |
+| llama3.2 | 7/8 (87%) | ~0.4s | 2.0 GB | Current default; "Correct!" misuse |
+| mistral:latest | 5/8 (62%) | ~22s | 4.4 GB | Too slow on CPU; "Correct!" misuse |
+
+### llama3.2:latest — 7/8
+
+Passes all rank lookups and hallucination guards. One persistent failure:
+
+```
+Query:    "What rank is LaDainian Tomlinson?"
+Response: "Correct! He's ranked #3."   ← FAIL: should not say "Correct!"
+```
+
+The model interprets reverse-rank queries as answer confirmations and
+prepends "Correct!" — confusing to a user who just asked a factual question.
+
+### phi3:mini — 8/8
+
+Handles all test cases correctly including the "Correct!" misuse case:
+
+```
+Query:    "What rank is LaDainian Tomlinson?"
+Response: "Ranked third on the NFL All-Time Touchdowns Leaders list with 162 touchdowns."  ← PASS
+```
+
+Responses are slightly more verbose but never inappropriate. Warm latency
+(~1.3s after initial model load) is acceptable for interactive use.
+
+One note: phi3:mini produces richer responses ("Ranked number one with 208 touchdowns"
+instead of "1.") — the responses are correct but sometimes longer than the
+system-prompt style suggests. This is cosmetic and does not affect correctness.
+
+### mistral:latest — 5/8
+
+Strong instruction following in principle, but at 4.4 GB it runs CPU-only on
+typical developer hardware. Average latency of 22s per query (first query hit 60s)
+is unacceptable for a live trivia interaction. It also exhibits "Correct!" misuse
+on rank queries:
+
+```
+Query:    "What rank is Jerry Rice?"
+Response: "Correct! He's ranked first."  ← FAIL
+```
+
+Not recommended for this deployment context.
+
+### Models Not Tested Empirically
+
+| Model | Reason not tested | Expected quality |
+|-------|------------------|-----------------|
+| Llama 3 70B | Requires 40+ GB VRAM; not feasible locally | High accuracy but unusable locally |
+| Gemma 2 9B/27B | ~5-15 GB; similar CPU latency problem as mistral | Likely equivalent to mistral on this task |
+| phi4 | Not yet in Ollama registry (released Dec 2024, ollama support limited) | Likely better than phi3:mini but larger |
+| Claude haiku-4-5 via API | No API key configured in test environment | Best accuracy; ~200ms latency via API; adds external dependency and cost |
+
+**Claude haiku-4-5** would be the best quality option if an API key is available —
+it would almost certainly score 8/8 and respond in ~200ms. The hexagonal `LLMPort`
+adapter makes adding a `ClaudeAdapter` straightforward. Consider if local inference
+becomes a bottleneck or quality remains an issue.
+
+## Recommendation
+
+**Switch the default model from `llama3.2` to `phi3:mini`.**
+
+- Same disk footprint (2.0 GB vs 2.2 GB)
+- Passes 8/8 test cases vs 7/8 (eliminates known "Correct!" misuse failure)
+- Warm latency ~1.3s — acceptable for live trivia interaction
+- No dependency changes; `OLLAMA_MODEL=phi3:mini` is the only config change needed
+
+To update the default permanently, change `DEFAULT_MODEL` in `llm_service.py`.
+
+```bash
+ollama pull phi3:mini     # one-time setup
+OLLAMA_MODEL=phi3:mini    # or update llm_service.py default
+```
+
+If latency becomes an issue at scale or quality must improve further, the next
+step is a `ClaudeAdapter` (haiku-4-5) behind the `LLMPort` interface.
+
+---
+
 # Pydantic AI Evaluation
 
 **Question:** Does `pydantic-ai` add value beyond what we already get from plain Pydantic + httpx + Ollama?
