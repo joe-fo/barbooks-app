@@ -24,10 +24,16 @@ class OllamaAdapter(AnswerSource):
         system_prompt = (
             "You are a terse trivia assistant. "
             "Answer using ONLY the information in the provided context. "
-            "Your reply MUST be one of: 'Yes', 'No', or 'Correct!' followed by "
-            "at most one short sentence. "
-            "Do NOT explain. Do NOT add extra information. "
-            "If the answer is not in the context, reply 'I don't know.'\n\n"
+            "NEVER invent or assume facts not stated in the context. "
+            "If the answer is not in the context, reply exactly: 'I don't know.'\n\n"
+            "Determine the type of request and respond accordingly:\n"
+            "- GUESS (user proposes a specific answer, e.g. 'Is it Dak Prescott?', "
+            "'Randy Moss?'): Reply 'Yes' or 'No' followed by one short confirming "
+            "sentence from the context.\n"
+            "- QUESTION (user asks for information, e.g. 'Who is #1?', 'Show me the "
+            "list'): For a list request, enumerate each item on its own line. For a "
+            "simple factual question, answer in one short sentence.\n"
+            "Do NOT use the word 'Correct!' — that is reserved for another layer.\n\n"
             f"Context:\n---\n{context}\n---"
         )
 
@@ -39,7 +45,8 @@ class OllamaAdapter(AnswerSource):
             ],
             "stream": False,
             "options": {
-                "num_predict": 50,  # mechanically cap response length
+                # Generous cap for list responses; yes/no answers use far fewer tokens.
+                "num_predict": 150,
                 "temperature": 0.0,  # deterministic responses
             },
         }
