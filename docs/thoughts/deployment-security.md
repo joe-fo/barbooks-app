@@ -149,13 +149,23 @@ The local-model architecture limits the blast radius: phi3:mini has no internet 
 
 ### 3b. Answer reveal (`REVEAL` intent)
 
-**"Show me the answers" currently returns the full answer key.** This is intentional per the code (`main.py:107–122`), and `question_patterns.py` classifies REVEAL as a defined intent, not a block.
+**Decision (2026-03-16): REVEAL is unrestricted by default, gated via env var.**
 
-Whether this should be gated depends on product intent:
-- If the trivia game is meant to be self-serve (users can self-spoil): current behavior is fine.
-- If answer reveal should require a password or be admin-only: add a check in the REVEAL branch.
+The `BARBOOKS_ALLOW_REVEAL` environment variable (default: `true`) controls whether
+users can request the full answer key via "show me the answers" / REVEAL intent.
 
-**Recommendation:** Document the decision explicitly in code. If REVEAL is intentionally unrestricted, add a comment stating this is by design. If it should be gated, treat it as a CRITICAL to fix before launch.
+- **`BARBOOKS_ALLOW_REVEAL=true` (default):** Full answer key returned. Appropriate for
+  self-serve PoC testing where users interact individually and self-spoiling is acceptable.
+- **`BARBOOKS_ALLOW_REVEAL=false`:** REVEAL returns `"Answers are only revealed by the
+  host. Keep guessing!"` — no answer key is exposed. Use this for hosted trivia games
+  where a human host controls when answers are revealed.
+
+The gate is implemented in `main.py` in the REVEAL intent branch. The flag defaults to
+`true` so no configuration change is needed for the current PoC. Before a live hosted
+game, set `BARBOOKS_ALLOW_REVEAL=false` in `docker-compose.yml`.
+
+See also: `question_patterns.py` — REVEAL is classified as a dedicated intent (not UNKNOWN),
+which is what enables the gate to fire before the LLM is called.
 
 ### 3c. Admin routes — unauthenticated by default
 
@@ -217,7 +227,7 @@ A review of `main.py` and `admin.py` confirms there are no other admin-style end
 
 ### MEDIUM (address before public launch)
 
-- [ ] **Document REVEAL intent policy** — explicitly state in code whether full answer reveal is intentional; gate it if not
+- [x] **Document REVEAL intent policy** — `BARBOOKS_ALLOW_REVEAL` env var added; defaults to `true` for PoC, set to `false` for hosted games (see §3b)
 - [ ] **Restrict `/admin` to internal/allowlisted IPs in Caddyfile or Cloudflare Access** — even with a password, the admin form should not be browsable from public internet
 - [ ] **Add `.dockerignore`** — exclude `tests/`, `eval_models.py`, `*.md`, `.git`, `books/` from build context
 - [ ] **Consider separate API subdomain** — prevents direct browser access to FastAPI; reduces prompt-injection surface

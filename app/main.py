@@ -16,6 +16,18 @@ logger = logging.getLogger(__name__)
 
 BOOKS_DIR = os.getenv("BOOKS_DIR", "books")
 
+# REVEAL intent policy — BARBOOKS_ALLOW_REVEAL controls whether users can request
+# the full answer key via "show me the answers" / REVEAL intent.
+#
+# Design decision (2026-03-16): REVEAL is UNRESTRICTED BY DEFAULT for the PoC so
+# that self-serve testing works without friction. Set BARBOOKS_ALLOW_REVEAL=false
+# in production when a human host is running the trivia game and answer spoiling
+# should be blocked. When false, the bot returns a host-redirect message instead
+# of the answer key.
+#
+# See docs/thoughts/deployment-security.md §3b for the full policy discussion.
+BARBOOKS_ALLOW_REVEAL = os.getenv("BARBOOKS_ALLOW_REVEAL", "true").lower() == "true"
+
 # In-memory cache: (book_id, page_id) -> fetched context text
 _context_cache: dict[tuple[str, str], str] = {}
 
@@ -103,8 +115,17 @@ async def chat_endpoint(request: ChatRequest):
                 logger.info("Returning response: %s", response.model_dump_json())
                 return response
 
-    # 1b. REVEAL — "show me the answers" → return AnswerKey if page data available
+    # 1b. REVEAL — "show me the answers"
+    # Gated by BARBOOKS_ALLOW_REVEAL (default: true for PoC).
+    # Set BARBOOKS_ALLOW_REVEAL=false for hosted games where the host controls reveals.
     if intent == QuestionIntent.REVEAL:
+        if not BARBOOKS_ALLOW_REVEAL:
+            response = ChatResponse(
+                answer="Answers are only revealed by the host. Keep guessing!",
+                source="system",
+            )
+            logger.info("REVEAL blocked by BARBOOKS_ALLOW_REVEAL=false")
+            return response
         if page and page.items:
             answer_key = AnswerKey(
                 items=[
