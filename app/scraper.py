@@ -7,6 +7,20 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
+def _clean_name(name: str) -> str:
+    """Strip appended abbreviated form from player names.
+
+    Some pages embed both the full name and an abbreviated form in the same
+    table cell, producing strings like 'Eli ManningE. Manning' or
+    'Dak PrescottD. Prescott'.  Detects the pattern
+    ``<...><LastWord><Initial>. <LastWord>`` and returns only the full-name prefix.
+    """
+    m = re.match(r"^(.*\b(\w+))[A-Z]\.\s+\2\s*$", name)
+    if m:
+        return m.group(1).strip()
+    return name
+
+
 def _parse_items_from_soup(soup: BeautifulSoup) -> list:
     """Parse rank-ordered items from a BeautifulSoup document.
 
@@ -78,7 +92,9 @@ def _parse_items_from_soup(soup: BeautifulSoup) -> list:
                 rank_val = row_idx
 
             nc, sc = name_col, stat_col
-            name_val = cells[nc] if nc is not None and nc < len(cells) else ""
+            name_val = _clean_name(
+                cells[nc] if nc is not None and nc < len(cells) else ""
+            )
             stat_val = cells[sc] if sc is not None and sc < len(cells) else ""
 
             if not name_val:
@@ -100,7 +116,7 @@ def _parse_items_from_soup(soup: BeautifulSoup) -> list:
     for ol in soup.find_all("ol"):
         items = []
         for i, li in enumerate(ol.find_all("li"), start=1):
-            text = li.get_text(strip=True)
+            text = _clean_name(li.get_text(strip=True))
             if text:
                 from .domain.models import PageItem as _PI
 

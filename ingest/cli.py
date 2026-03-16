@@ -65,6 +65,25 @@ def _extract_title(soup: BeautifulSoup) -> str:
     return ""
 
 
+def _clean_name(name: str) -> str:
+    """Strip appended abbreviated form from player names.
+
+    Some pages embed both the full name and an abbreviated form in the same
+    table cell, producing strings like 'Eli ManningE. Manning' or
+    'Dak PrescottD. Prescott'.  This happens because ``get_text()`` concatenates
+    text from nested ``<abbr>`` / ``<span>`` elements without a separator.
+
+    Detects the pattern ``<...><LastWord><Initial>. <LastWord>`` and returns
+    only the full-name prefix.
+    """
+    # Pattern: full name ends with a word that is immediately followed by
+    # "X. <same_word>" — the abbreviated form appended without a space.
+    m = re.match(r"^(.*\b(\w+))[A-Z]\.\s+\2\s*$", name)
+    if m:
+        return m.group(1).strip()
+    return name
+
+
 def _detect_stat_label(header_cells: list[str]) -> str:
     """Infer a stat label from table header cell text."""
     stat_keywords = [
@@ -145,7 +164,7 @@ def _parse_table_items(table: Tag) -> tuple[list[PageItem], str]:
         else:
             rank_val = row_idx
 
-        name_val = (
+        name_val = _clean_name(
             cells[name_col] if name_col is not None and name_col < len(cells) else ""
         )
         stat_val = (
@@ -174,7 +193,7 @@ def _parse_ordered_list_items(soup: BeautifulSoup) -> list[PageItem]:
     items: list[PageItem] = []
     for ol in soup.find_all("ol"):
         for i, li in enumerate(ol.find_all("li"), start=1):
-            text = li.get_text(strip=True)
+            text = _clean_name(li.get_text(strip=True))
             if text:
                 items.append(PageItem(rank=i, key=f"#{i}", name=text))
         if items:

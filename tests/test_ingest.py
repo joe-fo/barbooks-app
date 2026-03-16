@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from app.domain.models import Page
 from ingest import (
+    _clean_name,
     _extract_title,
     _find_xlsx,
     _parse_ordered_list_items,
@@ -31,6 +32,28 @@ def _html(body: str) -> str:
 
 def _soup(html: str) -> BeautifulSoup:
     return BeautifulSoup(html, "html.parser")
+
+
+# ---------------------------------------------------------------------------
+# _clean_name
+# ---------------------------------------------------------------------------
+
+
+class TestCleanName:
+    def test_strips_abbreviated_suffix(self):
+        assert _clean_name("Eli ManningE. Manning") == "Eli Manning"
+
+    def test_strips_abbreviated_suffix_different_player(self):
+        assert _clean_name("Dak PrescottD. Prescott") == "Dak Prescott"
+
+    def test_leaves_clean_name_unchanged(self):
+        assert _clean_name("Jerry Rice") == "Jerry Rice"
+
+    def test_leaves_multiword_name_unchanged(self):
+        assert _clean_name("LaDainian Tomlinson") == "LaDainian Tomlinson"
+
+    def test_leaves_empty_string_unchanged(self):
+        assert _clean_name("") == ""
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +140,27 @@ class TestParseTableItems:
         items, _ = _parse_table_items(table)
         assert len(items) == 1
         assert items[0].rank == 1  # parsed digit from "T1"
+
+    def test_strips_abbreviated_name_suffix(self):
+        """Name cells that embed full + abbreviated form must not produce duplicates."""
+        # Simulate a table cell like <td>Eli Manning<abbr>E. Manning</abbr></td>
+        # get_text(strip=True) produces "Eli ManningE. Manning" without the fix.
+        html = (
+            "<table>"
+            "<tr><th>Rank</th><th>Player</th><th>TDs</th></tr>"
+            "<tr><td>1</td>"
+            "<td>Eli Manning<abbr>E. Manning</abbr></td><td>117</td></tr>"
+            "<tr><td>2</td>"
+            "<td>Dak Prescott<abbr>D. Prescott</abbr></td><td>98</td></tr>"
+            "<tr><td>3</td><td>Tom Brady<abbr>T. Brady</abbr></td><td>89</td></tr>"
+            "</table>"
+        )
+        soup = _soup(html)
+        table = soup.find("table")
+        items, _ = _parse_table_items(table)
+        assert items[0].name == "Eli Manning"
+        assert items[1].name == "Dak Prescott"
+        assert items[2].name == "Tom Brady"
 
 
 # ---------------------------------------------------------------------------
