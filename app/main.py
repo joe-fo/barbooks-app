@@ -2,7 +2,8 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 from . import mock_db, spreadsheet_store
 from .admin import router as admin_router
@@ -46,6 +47,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Barbooks API PoC", lifespan=lifespan)
 app.include_router(admin_router)
+
+
+class PageInfoResponse(BaseModel):
+    """Page metadata returned to the Streamlit UI for display."""
+
+    title: str
+    description: str
+    category: str
+
+
+@app.get("/api/v1/page/{book_id}/{page_id}", response_model=PageInfoResponse)
+async def page_info(book_id: str, page_id: str):
+    """Return display metadata for a given (book_id, page_id)."""
+    page = spreadsheet_store.get_page(book_id, page_id)
+    if page is None:
+        raise HTTPException(status_code=404, detail="Page not found")
+    return PageInfoResponse(
+        title=page.title,
+        description=page.description,
+        category=page.type,
+    )
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)

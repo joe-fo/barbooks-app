@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.domain.models import Page
 from app.main import app
 
 
@@ -17,6 +18,49 @@ def client():
     ):
         with TestClient(app) as c:
             yield c
+
+
+class TestPageInfoEndpoint:
+    def test_returns_page_info_when_found(self, client):
+        fake_page = Page(
+            page_id="9",
+            url="http://example.com",
+            title="NFL All-Time Touchdown Leaders",
+            description="Who leads the NFL in career TDs?",
+            type="list",
+        )
+        with patch("app.main.spreadsheet_store.get_page", return_value=fake_page):
+            response = client.get("/api/v1/page/nfl/9")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "NFL All-Time Touchdown Leaders"
+        assert data["description"] == "Who leads the NFL in career TDs?"
+        assert data["category"] == "list"
+
+    def test_returns_404_when_page_not_found(self, client):
+        with patch("app.main.spreadsheet_store.get_page", return_value=None):
+            response = client.get("/api/v1/page/unknown/999")
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_response_shape(self, client):
+        fake_page = Page(
+            page_id="1",
+            url="http://example.com",
+            title="Some Title",
+            description="",
+            type="list",
+        )
+        with patch("app.main.spreadsheet_store.get_page", return_value=fake_page):
+            response = client.get("/api/v1/page/nfl/1")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "title" in data
+        assert "description" in data
+        assert "category" in data
 
 
 class TestChatEndpointValidation:
