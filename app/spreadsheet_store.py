@@ -73,6 +73,13 @@ def get_page_url(book_id: str, page_id: str) -> Optional[str]:
     return page.url if page else None
 
 
+def update_page_items(book_id: str, page_id: str, items: list) -> None:
+    """Attach parsed items to an existing Page (called after startup URL fetch)."""
+    book = _books.get(book_id)
+    if book and page_id in book.pages:
+        book.pages[page_id].items = items
+
+
 def all_pages() -> list[tuple[str, str, str]]:
     """Return list of (book_id, page_id, url) for all loaded pages."""
     result = []

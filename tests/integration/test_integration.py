@@ -25,6 +25,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app import spreadsheet_store
+from app.domain.models import PageItem
 from app.main import _context_cache, app
 
 # ---------------------------------------------------------------------------
@@ -39,6 +40,21 @@ FAKE_NFL_CONTEXT = (
     "4. Randy Moss - 157 TDs. "
     "5. Terrell Owens - 153 TDs."
 )
+
+
+def _nfl_item(rank, name, stat):
+    return PageItem(
+        rank=rank, key=f"#{rank}", name=name, stat_value=stat, stat_label="TDs"
+    )
+
+
+FAKE_NFL_ITEMS = [
+    _nfl_item(1, "Jerry Rice", "208"),
+    _nfl_item(2, "Emmitt Smith", "175"),
+    _nfl_item(3, "LaDainian Tomlinson", "162"),
+    _nfl_item(4, "Randy Moss", "157"),
+    _nfl_item(5, "Terrell Owens", "153"),
+]
 
 # Absolute path so tests pass regardless of cwd.
 _BOOKS_DIR = str(Path(__file__).parent.parent.parent / "books")
@@ -81,9 +97,10 @@ async def integration_client():
     # Mirror what the lifespan does: load real spreadsheet data.
     spreadsheet_store.load_books(_BOOKS_DIR)
 
-    # Mirror what the lifespan does: populate context cache (no actual fetch).
+    # Mirror what the lifespan does: populate context cache and page items.
     for book_id, page_id, url in spreadsheet_store.all_pages():
         _context_cache[(book_id, page_id)] = FAKE_NFL_CONTEXT
+        spreadsheet_store.update_page_items(book_id, page_id, FAKE_NFL_ITEMS)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
@@ -113,7 +130,7 @@ class TestShortCircuit:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["source"] == "deterministic"
+        assert data["source"] == "short_circuit"
         assert "Jerry Rice" in data["answer"]
 
     async def test_randy_moss_returns_deterministic_response(self, integration_client):
@@ -128,7 +145,7 @@ class TestShortCircuit:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["source"] == "deterministic"
+        assert data["source"] == "short_circuit"
         assert "Randy Moss" in data["answer"]
 
     async def test_emmitt_smith_returns_deterministic_response(
@@ -144,7 +161,7 @@ class TestShortCircuit:
         )
         assert response.status_code == 200
         data = response.json()
-        assert data["source"] == "deterministic"
+        assert data["source"] == "short_circuit"
 
 
 class TestLLMFallback:
