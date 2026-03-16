@@ -19,6 +19,9 @@ BOOKS_DIR = os.getenv("BOOKS_DIR", "books")
 # In-memory cache: (book_id, page_id) -> fetched context text
 _context_cache: dict[tuple[str, str], str] = {}
 
+# Fetch status recorded at startup: 'ok' | 'fetch_failed' | 'no_data'
+_fetch_status: dict[tuple[str, str], str] = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,9 +38,24 @@ async def lifespan(app: FastAPI):
         key = (book_id, page_id)
         logger.info("Fetching context for (%s, %s) from %s", book_id, page_id, url)
         text, items = await page_cache.get_or_fetch(book_id, page_id, url)
-        if text.startswith("Error") or not text:
-            logger.warning("Failed to pre-load context for %s: %s", key, text)
+        if text.startswith("Error"):
+            logger.warning(
+                "fetch_status=fetch_failed page=(%s, %s) error=%s"
+                " — answers unavailable for this page",
+                book_id,
+                page_id,
+                text,
+            )
+            _fetch_status[key] = "fetch_failed"
+        elif not text:
+            logger.warning(
+                "fetch_status=no_data page=(%s, %s) — source returned empty content",
+                book_id,
+                page_id,
+            )
+            _fetch_status[key] = "no_data"
         else:
+            _fetch_status[key] = "ok"
             _context_cache[key] = text
             logger.info("Cached context for %s (%d chars)", key, len(text))
             if items:
@@ -47,6 +65,7 @@ async def lifespan(app: FastAPI):
     logger.info("Startup complete: %d page context(s) cached.", len(_context_cache))
     yield
     _context_cache.clear()
+    _fetch_status.clear()
 
 
 app = FastAPI(title="Barbooks API PoC", lifespan=lifespan)
@@ -59,6 +78,7 @@ class PageInfoResponse(BaseModel):
     title: str
     description: str
     category: str
+    data_status: str = "ok"  # 'ok' | 'fetch_failed' | 'no_data'
 
 
 @app.get("/api/v1/page/{book_id}/{page_id}", response_model=PageInfoResponse)
@@ -67,10 +87,12 @@ async def page_info(book_id: str, page_id: str):
     page = spreadsheet_store.get_page(book_id, page_id)
     if page is None:
         raise HTTPException(status_code=404, detail="Page not found")
+    key = (book_id, page_id)
     return PageInfoResponse(
         title=page.title,
         description=page.description,
         category=page.type,
+        data_status=_fetch_status.get(key, "ok"),
     )
 
 

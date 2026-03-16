@@ -34,6 +34,12 @@ try:
             st.caption(page_data["description"])
         elif page_data.get("category"):
             st.caption(f"Category: {page_data['category']}")
+        if page_data.get("data_status") in ("fetch_failed", "no_data"):
+            st.warning(
+                "Answer data is unavailable for this page"
+                " — the source could not be loaded."
+                " The host should check the data."
+            )
         _page_ok = True
     elif page_resp.status_code == 404:
         st.error("Invalid page — please scan a valid QR code.")
