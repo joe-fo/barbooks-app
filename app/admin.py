@@ -3,18 +3,21 @@
 Provides a browser-based form at /admin for adding new trivia pages
 without editing spreadsheets or running CLI tools directly.
 
-Set the ADMIN_PASSWORD environment variable to protect the endpoint.
-If unset, the form is unprotected (suitable for local / dev use only).
+ADMIN_PASSWORD environment variable MUST be set; if unset all admin
+routes return 403 (fail closed).  As a second layer, add Cloudflare
+Access or a Caddyfile IP restriction in front of these routes.
 """
 
 from __future__ import annotations
 
 import logging
 import os
+from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from pydantic import BaseModel
 
 # ingest.py lives at the project root; importable when uvicorn runs from there.
@@ -28,6 +31,7 @@ BOOKS_DIR = os.getenv("BOOKS_DIR", "books")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 
 router = APIRouter()
+_basic_auth = HTTPBasic(auto_error=False)
 
 # ---------------------------------------------------------------------------
 # Request / response models
@@ -231,8 +235,19 @@ _ADMIN_HTML = """\
 
 
 def _check_password(pw: str) -> None:
+    """Verify admin password.  Fails closed: 403 if ADMIN_PASSWORD is not set.
+
+    NOTE: add Cloudflare Access or a Caddyfile ``remote_ip`` restriction as a
+    second layer of defence in front of these routes.
+    """
     expected = ADMIN_PASSWORD
-    if expected and pw != expected:
+    if not expected:
+        # Fail closed — if the env var is absent/empty, deny access entirely.
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access is disabled (ADMIN_PASSWORD env var not set)",
+        )
+    if pw != expected:
         raise HTTPException(status_code=401, detail="Invalid admin password")
 
 
@@ -242,8 +257,11 @@ def _check_password(pw: str) -> None:
 
 
 @router.get("/admin", response_class=HTMLResponse)
-async def admin_form() -> str:
-    """Serve the admin data-entry form."""
+async def admin_form(
+    credentials: Optional[HTTPBasicCredentials] = Depends(_basic_auth),
+) -> str:
+    """Serve the admin data-entry form (HTTP Basic Auth required)."""
+    _check_password(credentials.password if credentials else "")
     return _ADMIN_HTML
 
 

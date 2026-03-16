@@ -5,6 +5,8 @@ services:
     command: poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       - OLLAMA_URL=${OLLAMA_URL:-http://host.docker.internal:11434/api/generate}
+      # ADMIN_PASSWORD is required — compose will fail loudly if unset.
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set in your .env file}
     ports:
       - "8000:8000"
     restart: unless-stopped
