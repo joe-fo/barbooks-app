@@ -18,6 +18,7 @@ Usage::
     intent, params = classify_question("Who is number 3 on the list?")
     # -> (QuestionIntent.RANK_LOOKUP, {"rank": "3"})
 """
+
 from __future__ import annotations
 
 import re
@@ -28,20 +29,20 @@ from typing import Any
 
 class QuestionIntent(Enum):
     # Deterministically answerable — short-circuit can handle
-    EXISTENCE = "existence"           # "Is [name] on this list?"
-    RANK_LOOKUP = "rank_lookup"       # "Who is #N?" / "What is ranked 3rd?"
-    REVERSE_RANK = "reverse_rank"     # "What rank is [name]?"
-    STAT_LOOKUP = "stat_lookup"       # "How many TDs does [name] have?"
-    YEAR_LOOKUP = "year_lookup"       # "Who won in 2020?"
-    REVERSE_YEAR = "reverse_year"     # "What year did [name] win?"
-    FREQUENCY = "frequency"           # "How many times does [name] appear?"
-    CONFIRMATION = "confirmation"     # "Is the answer [name]?" / just "[name]?"
-    COUNT = "count"                   # "How many items are on this list?"
-    HINT = "hint"                     # "Give me a hint" / "What's the clue for #N?"
-    PAGE_META = "page_meta"           # "What is this page about?"
+    EXISTENCE = "existence"  # "Is [name] on this list?"
+    RANK_LOOKUP = "rank_lookup"  # "Who is #N?" / "What is ranked 3rd?"
+    REVERSE_RANK = "reverse_rank"  # "What rank is [name]?"
+    STAT_LOOKUP = "stat_lookup"  # "How many TDs does [name] have?"
+    YEAR_LOOKUP = "year_lookup"  # "Who won in 2020?"
+    REVERSE_YEAR = "reverse_year"  # "What year did [name] win?"
+    FREQUENCY = "frequency"  # "How many times does [name] appear?"
+    CONFIRMATION = "confirmation"  # "Is the answer [name]?" / just "[name]?"
+    COUNT = "count"  # "How many items are on this list?"
+    HINT = "hint"  # "Give me a hint" / "What's the clue for #N?"
+    PAGE_META = "page_meta"  # "What is this page about?"
 
     # Block — never answer; redirect or refuse
-    REVEAL = "reveal"                 # "Show me the answers" / "Tell me the list"
+    REVEAL = "reveal"  # "Show me the answers" / "Tell me the list"
 
     # Must go to LLM — too ambiguous or open-ended
     UNKNOWN = "unknown"
@@ -52,7 +53,7 @@ class PatternEntry:
     intent: QuestionIntent
     # Each element is one alternative pattern string; matched with re.IGNORECASE.
     alternatives: list[str]
-    group_names: list[str]           # which named capture groups to extract
+    group_names: list[str]  # which named capture groups to extract
 
     def match(self, text: str) -> dict[str, Any] | None:
         """Return dict of captured params if any alternative matches, else None."""
@@ -76,7 +77,6 @@ class PatternEntry:
 # Pattern registry — evaluated in order; first match wins.
 # ---------------------------------------------------------------------------
 PATTERNS: list[PatternEntry] = [
-
     # -----------------------------------------------------------------------
     # REVEAL — checked first so "show me the answer to #3" doesn't become
     # a rank_lookup.
@@ -92,7 +92,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=[],
     ),
-
     # -----------------------------------------------------------------------
     # PAGE_META — "what is this list/page about?"
     # -----------------------------------------------------------------------
@@ -108,7 +107,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=[],
     ),
-
     # -----------------------------------------------------------------------
     # COUNT — "how many items are on this list?"
     # -----------------------------------------------------------------------
@@ -121,7 +119,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=[],
     ),
-
     # -----------------------------------------------------------------------
     # HINT — "give me a hint" / "what's the clue for #3?"
     # -----------------------------------------------------------------------
@@ -135,7 +132,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["rank"],
     ),
-
     # -----------------------------------------------------------------------
     # YEAR_LOOKUP — "who won in 2020?" / "who was MVP in 2019?"
     # -----------------------------------------------------------------------
@@ -148,7 +144,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["year"],
     ),
-
     # -----------------------------------------------------------------------
     # REVERSE_YEAR — "what year did [name] win?"
     # -----------------------------------------------------------------------
@@ -162,7 +157,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["name"],
     ),
-
     # -----------------------------------------------------------------------
     # RANK_LOOKUP — "who is #3?" / "what is ranked 5th?" / "#9"
     # -----------------------------------------------------------------------
@@ -177,7 +171,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["rank"],
     ),
-
     # -----------------------------------------------------------------------
     # REVERSE_RANK — "what rank is [name]?" / "where does [name] fall?"
     # -----------------------------------------------------------------------
@@ -191,7 +184,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["name"],
     ),
-
     # -----------------------------------------------------------------------
     # FREQUENCY — "how many times does [name] appear?"
     # -----------------------------------------------------------------------
@@ -206,7 +198,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["name"],
     ),
-
     # -----------------------------------------------------------------------
     # STAT_LOOKUP — "how many TDs does [name] have?" / "[name]'s rushing yards?"
     # -----------------------------------------------------------------------
@@ -221,7 +212,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["stat", "name"],
     ),
-
     # -----------------------------------------------------------------------
     # EXISTENCE — "is [name] on this list?" / "does [name] appear here?"
     # -----------------------------------------------------------------------
@@ -237,7 +227,6 @@ PATTERNS: list[PatternEntry] = [
         ],
         group_names=["name"],
     ),
-
     # -----------------------------------------------------------------------
     # CONFIRMATION — "is the answer Randy Moss?" / "is it Jerry Rice?"
     # Must come after EXISTENCE so "Is Randy Moss on the list?" doesn't
@@ -249,7 +238,8 @@ PATTERNS: list[PatternEntry] = [
         intent=QuestionIntent.CONFIRMATION,
         alternatives=[
             r"\bis\s+(?:it|the\s+answer|the\s+one)\s+(?P<name>.+?)\s*\??$",
-            # bare name as question: "Randy Moss?" — only matches 1-3 word names to avoid false positives
+            # bare name as question: "Randy Moss?" — only matches 1-3 word names
+            # to avoid false positives
             r"^(?P<name>\w+(?:\s+\w+){0,2})\s*\?\s*$",
         ],
         group_names=["name"],

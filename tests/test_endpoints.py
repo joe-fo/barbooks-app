@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.domain.models import Page
+from app.domain.models import Page, PageItem
 from app.main import app
 
 
@@ -134,7 +134,7 @@ class TestChatEndpointDeterministicPath:
         assert response.status_code == 200
         data = response.json()
         assert data["answer"] == "Yes, Jerry Rice is 1st."
-        assert data["source"] == "deterministic"
+        assert data["source"] == "short_circuit"
 
     def test_response_shape(self, client):
         with patch("app.main.mock_db.deterministic_match", return_value="Some answer"):
@@ -253,3 +253,154 @@ class TestChatEndpointLLMFallback:
 
         # fetch_url_text should only be called once; second request uses cache
         assert call_count == 1
+
+
+class TestChatEndpointStructuredShortCircuit:
+    """Tests for RANK_LOOKUP and REVEAL intents that return structured objects."""
+
+    @pytest.fixture
+    def page_with_items(self):
+        return Page(
+            page_id="9",
+            url="http://example.com",
+            title="NFL All-Time Touchdown Leaders",
+            description="Career TD leaders",
+            type="list",
+            items=[
+                PageItem(rank=1, name="Jerry Rice", stat_value="208", stat_label="TDs"),
+                PageItem(
+                    rank=2, name="Emmitt Smith", stat_value="175", stat_label="TDs"
+                ),
+                PageItem(
+                    rank=3,
+                    name="LaDainian Tomlinson",
+                    stat_value="162",
+                    stat_label="TDs",
+                ),
+                PageItem(rank=4, name="Randy Moss", stat_value="157", stat_label="TDs"),
+            ],
+        )
+
+    def test_rank_lookup_returns_line_item_answer(self, client, page_with_items):
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Who is #1 on the list?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        answer = data["answer"]
+        assert answer["rank"] == 1
+        assert answer["name"] == "Jerry Rice"
+        assert answer["stat"] == "208"
+        assert answer["correct"] is True
+
+    def test_rank_lookup_rank4_returns_correct_item(self, client, page_with_items):
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Who is number 4?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert data["answer"]["rank"] == 4
+        assert data["answer"]["name"] == "Randy Moss"
+
+    def test_reveal_returns_answer_key(self, client, page_with_items):
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Show me the answers",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        answer = data["answer"]
+        assert "items" in answer
+        assert len(answer["items"]) == 4
+        assert answer["items"][0]["rank"] == 1
+        assert answer["items"][0]["name"] == "Jerry Rice"
+
+    def test_rank_lookup_falls_through_when_no_items(self, client):
+        empty_page = Page(
+            page_id="9",
+            url="http://example.com",
+            title="NFL Touchdown Leaders",
+            description="",
+            type="list",
+            items=[],
+        )
+        with (
+            patch("app.main.spreadsheet_store.get_page", return_value=empty_page),
+            patch("app.main.mock_db.deterministic_match", return_value=None),
+            patch(
+                "app.main.generate_llm_answer",
+                new=AsyncMock(return_value="LLM fallback"),
+            ),
+        ):
+            from app.main import _context_cache
+
+            _context_cache[("nfl", "9")] = "some context"
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Who is #1 on the list?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "llm"
+        assert data["answer"] == "LLM fallback"
+
+    def test_reveal_falls_through_when_no_items(self, client):
+        empty_page = Page(
+            page_id="9",
+            url="http://example.com",
+            title="NFL Touchdown Leaders",
+            description="",
+            type="list",
+            items=[],
+        )
+        with (
+            patch("app.main.spreadsheet_store.get_page", return_value=empty_page),
+            patch("app.main.mock_db.deterministic_match", return_value=None),
+            patch(
+                "app.main.generate_llm_answer",
+                new=AsyncMock(return_value="LLM fallback"),
+            ),
+        ):
+            from app.main import _context_cache
+
+            _context_cache[("nfl", "9")] = "some context"
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Show me the answers",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "llm"
