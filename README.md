@@ -20,5 +20,5 @@ task ui    # Streamlit frontend
 
 ## Further Reading
 
-- [Product Requirements](product-requirements.md) — what the app does and why
+- [Product Requirements](docs/thoughts/product-requirements.md) — what the app does and why
 - [Architecture](architecture.md) — technical design and implementation details
