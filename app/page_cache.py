@@ -15,11 +15,18 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from .domain.models import LineItemAnswer
+
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = os.getenv("BARBOOKS_CACHE_DIR", "cache/pages")
 CACHE_TTL_HOURS = int(os.getenv("BARBOOKS_CACHE_TTL_HOURS", "24"))
 CACHE_MODE = os.getenv("BARBOOKS_CACHE_MODE", "normal")  # "normal" | "offline"
+
+
+def _deserialize_items(raw: list) -> list[LineItemAnswer]:
+    """Coerce each dict to LineItemAnswer; pass through existing instances."""
+    return [LineItemAnswer(**i) if isinstance(i, dict) else i for i in raw]
 
 
 def _cache_path(book_id: str, page_id: str) -> Path:
@@ -35,7 +42,7 @@ def _load_cache(path: Path) -> tuple[str, list] | None:
     """Return (text, items) from a cache file, or None if unreadable."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return data["text"], data.get("items", [])
+        return data["text"], _deserialize_items(data.get("items", []))
     except Exception as e:
         logger.warning("Failed to read cache file %s: %s", path, e)
         return None
@@ -82,7 +89,7 @@ async def get_or_fetch(
             data = json.loads(path.read_text(encoding="utf-8"))
             if not _is_stale(data["fetched_at"]):
                 logger.debug("Cache hit (fresh) for (%s, %s)", book_id, page_id)
-                return data["text"], data.get("items", [])
+                return data["text"], _deserialize_items(data.get("items", []))
             logger.debug("Cache hit (stale) for (%s, %s)", book_id, page_id)
         except Exception as e:
             logger.warning("Cache read error for (%s, %s): %s", book_id, page_id, e)
