@@ -50,6 +50,12 @@ async def _fetch_html(url: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _extract_answer_count(title: str) -> int:
+    """Derive answer_count from a title like 'Top 10 ...' -> 10. Returns 0 if unset."""
+    m = re.search(r"\bTop\s+(\d+)\b", title, re.IGNORECASE)
+    return int(m.group(1)) if m else 0
+
+
 def _extract_title(soup: BeautifulSoup) -> str:
     """Best-effort page title extraction."""
     # Try <h1> first, then <title>
@@ -252,6 +258,7 @@ def parse_page_data(
         clue_style=f"{len(items)} items" if items else "",
         clue_type=clue_type,
         item_count=len(items),
+        answer_count=_extract_answer_count(title),
         stat_label=stat_label,
         items=items,
     )
@@ -422,6 +429,7 @@ def _build_page_from_cache_result(
         clue_style=f"{len(page_items)} items" if page_items else "",
         clue_type=clue_type,
         item_count=len(page_items),
+        answer_count=_extract_answer_count(title),
         stat_label=stat_label,
         items=page_items,
     )

@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from app.domain.models import Page
 from ingest import (
     _clean_name,
+    _extract_answer_count,
     _extract_title,
     _find_xlsx,
     _parse_ordered_list_items,
@@ -59,6 +60,23 @@ class TestCleanName:
 # ---------------------------------------------------------------------------
 # _extract_title
 # ---------------------------------------------------------------------------
+
+
+class TestExtractAnswerCount:
+    def test_top_10(self):
+        assert _extract_answer_count("Top 10 Career Passing Yard Leaders") == 10
+
+    def test_top_5(self):
+        assert _extract_answer_count("Top 5 NFL Rushers") == 5
+
+    def test_case_insensitive(self):
+        assert _extract_answer_count("top 25 all-time scorers") == 25
+
+    def test_no_top_n_returns_zero(self):
+        assert _extract_answer_count("NFL All-Time Touchdown Leaders") == 0
+
+    def test_empty_string_returns_zero(self):
+        assert _extract_answer_count("") == 0
 
 
 class TestExtractTitle:
@@ -228,6 +246,23 @@ class TestParsePageData:
         assert page.url == "http://example.com"
         assert page.type == "list"
         assert page.clue_type == "rank"
+
+    def test_answer_count_derived_from_top_n_title(self):
+        html = _html(
+            "<h1>Top 3 NFL All-Time TD Leaders</h1>"
+            "<table>"
+            "<tr><th>Rank</th><th>Player</th><th>TDs</th></tr>"
+            "<tr><td>1</td><td>Jerry Rice</td><td>208</td></tr>"
+            "</table>"
+        )
+        page = parse_page_data("http://example.com", "nfl", "9", html)
+        assert page.answer_count == 3
+
+    def test_answer_count_zero_when_no_top_n(self):
+        page = parse_page_data(
+            "http://example.com", "nfl", "9", self._ranked_table_html()
+        )
+        assert page.answer_count == 0
 
     def test_fallback_to_ol(self):
         html = _html(

@@ -372,6 +372,64 @@ class TestChatEndpointStructuredShortCircuit:
         assert data["source"] == "llm"
         assert data["answer"] == "LLM fallback"
 
+    def test_reveal_respects_answer_count(self, client):
+        """REVEAL on a Top 3 page with 4 items returns only 3 items."""
+        page = Page(
+            page_id="9",
+            url="http://example.com",
+            title="Top 3 NFL Career TD Leaders",
+            description="",
+            type="list",
+            answer_count=3,
+            items=[
+                PageItem(rank=1, name="Jerry Rice", stat_value="208", stat_label="TDs"),
+                PageItem(
+                    rank=2, name="Emmitt Smith", stat_value="175", stat_label="TDs"
+                ),
+                PageItem(
+                    rank=3,
+                    name="LaDainian Tomlinson",
+                    stat_value="162",
+                    stat_label="TDs",
+                ),
+                PageItem(rank=4, name="Randy Moss", stat_value="157", stat_label="TDs"),
+            ],
+        )
+        with patch("app.main.spreadsheet_store.get_page", return_value=page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Show me the answers",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        items = data["answer"]["items"]
+        assert len(items) == 3
+        assert items[-1]["rank"] == 3
+
+    def test_reveal_returns_all_items_when_answer_count_zero(
+        self, client, page_with_items
+    ):
+        """REVEAL with answer_count=0 returns all items (no restriction)."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Show me the answers",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["answer"]["items"]) == 4
+
     def test_reveal_falls_through_when_no_items(self, client):
         empty_page = Page(
             page_id="9",

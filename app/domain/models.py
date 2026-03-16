@@ -64,6 +64,7 @@ class Page(BaseModel):
     clue_style: str = ""
     clue_type: str = ""  # "rank" | "year" | "team" | "matchup" | ""
     item_count: int = 0  # Number of items on this page
+    answer_count: int = 0  # Scope of the question (e.g. 10 for "Top 10"); 0 = all items
     stat_label: str = (
         ""  # Canonical stat label for this page ("TDs", "rushing yards", …)
     )

@@ -1,11 +1,19 @@
 """Loads book/page data from spreadsheets in the books/ directory."""
 
 import os
+import re
 from typing import Optional
 
 import pandas as pd
 
 from .domain import Book, Page
+
+
+def _extract_answer_count(title: str) -> int:
+    """Derive answer_count from a title like 'Top 10 ...' -> 10. Returns 0 if unset."""
+    m = re.search(r"\bTop\s+(\d+)\b", title, re.IGNORECASE)
+    return int(m.group(1)) if m else 0
+
 
 # In-memory store: book_id -> Book
 _books: dict[str, Book] = {}
@@ -44,13 +52,23 @@ def _load_book(book_id: str, xlsx_path: str) -> None:
             continue
 
         page_id = str(int(page_num))
+        title = str(row.get("Title", ""))
+
+        # Read Answer Count from spreadsheet; fall back to title-based derivation.
+        raw_count = row.get("Answer Count")
+        if raw_count is not None and not pd.isna(raw_count):
+            answer_count = int(raw_count)
+        else:
+            answer_count = _extract_answer_count(title)
+
         pages[page_id] = Page(
             page_id=page_id,
             url=str(url),
-            title=str(row.get("Title", "")),
+            title=title,
             description=str(row.get("Description", "")),
             type=str(row.get("Type", "list")),
             clue_style=str(row.get("# Items / Clue Style", "")),
+            answer_count=answer_count,
         )
 
     _books[book_id] = Book(id=book_id, pages=pages)

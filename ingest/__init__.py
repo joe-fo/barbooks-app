@@ -5,6 +5,7 @@ Re-exports the public API from ingest.cli for backward compatibility.
 
 from ingest.cli import (  # noqa: F401
     _clean_name,
+    _extract_answer_count,
     _extract_title,
     _find_xlsx,
     _parse_ordered_list_items,

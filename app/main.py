@@ -150,6 +150,13 @@ async def chat_endpoint(request: ChatRequest):
             logger.info("REVEAL blocked by BARBOOKS_ALLOW_REVEAL=false")
             return response
         if page and page.items:
+            items_to_reveal = page.items
+            if page.answer_count > 0:
+                items_to_reveal = [
+                    i
+                    for i in page.items
+                    if i.rank is not None and i.rank <= page.answer_count
+                ]
             answer_key = AnswerKey(
                 items=[
                     LineItemAnswer(
@@ -158,7 +165,7 @@ async def chat_endpoint(request: ChatRequest):
                         stat=i.stat_value,
                         correct=True,
                     )
-                    for i in page.items
+                    for i in items_to_reveal
                 ]
             )
             response = ChatResponse(answer=answer_key, source="short_circuit")

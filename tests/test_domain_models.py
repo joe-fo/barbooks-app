@@ -103,6 +103,14 @@ class TestPage:
         assert len(page.items) == 1
         assert page.items[0].name == "Jerry Rice"
 
+    def test_answer_count_defaults_to_zero(self):
+        page = Page(page_id="9", url="http://example.com")
+        assert page.answer_count == 0
+
+    def test_answer_count_set(self):
+        page = Page(page_id="9", url="http://example.com", answer_count=10)
+        assert page.answer_count == 10
+
     def test_missing_page_id_fails(self):
         with pytest.raises(ValidationError):
             Page(url="http://example.com")
