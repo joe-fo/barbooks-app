@@ -67,7 +67,34 @@ if params.get("book_id") != book_id or params.get("page_id") != page_id:
     st.query_params["page_id"] = page_id
 
 st.set_page_config(page_title="Barbooks AI", page_icon="🏈")
-st.title("Barbooks AI Agent 🏈")
+
+# Inject styles for the question hero — mobile-first, high contrast
+st.markdown(
+    """
+<style>
+.barbooks-brand {
+    font-size: 0.75rem;
+    color: #999;
+    margin-bottom: 0.25rem;
+}
+.page-label {
+    font-size: 0.8rem;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.5rem;
+}
+.question-hero {
+    font-size: clamp(1.4rem, 5vw, 2rem);
+    font-weight: 700;
+    color: #111;
+    line-height: 1.3;
+    margin: 0 0 1.25rem 0;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 # Fetch page info to display the trivia question prominently
 _page_ok = False
@@ -75,11 +102,20 @@ try:
     page_resp = httpx.get(f"{_API_BASE}/api/v1/page/{book_id}/{page_id}", timeout=10.0)
     if page_resp.status_code == 200:
         page_data = page_resp.json()
-        st.header(page_data["title"])
-        if page_data.get("description"):
-            st.caption(page_data["description"])
-        elif page_data.get("category"):
-            st.caption(f"Category: {page_data['category']}")
+        # Small brand line
+        st.markdown(
+            '<p class="barbooks-brand">🏈 Barbooks AI</p>', unsafe_allow_html=True
+        )
+        # Page label (book/category context) — small, muted
+        label = page_data["title"]
+        if page_data.get("category") and page_data["category"] != "list":
+            label += f" · {page_data['category']}"
+        st.markdown(f'<p class="page-label">{label}</p>', unsafe_allow_html=True)
+        # Trivia question — the hero element
+        question = page_data.get("description") or page_data["title"]
+        st.markdown(
+            f'<h1 class="question-hero">{question}</h1>', unsafe_allow_html=True
+        )
         if page_data.get("data_status") in ("fetch_failed", "no_data"):
             st.warning(
                 "Answer data is unavailable for this page"
@@ -91,9 +127,14 @@ try:
         st.error("Invalid page — please scan a valid QR code.")
         st.stop()
     else:
+        st.markdown(
+            '<p class="barbooks-brand">🏈 Barbooks AI</p>', unsafe_allow_html=True
+        )
         st.warning("Could not load page info. You can still ask questions below.")
         st.caption(f"Book: `{book_id}` · Page: `{page_id}`")
 except httpx.RequestError:
+    _brand = '<p class="barbooks-brand">🏈 Barbooks AI</p>'
+    st.markdown(_brand, unsafe_allow_html=True)
     st.warning(
         "Could not connect to the API to load page info."
         " You can still try asking below."
