@@ -12,6 +12,7 @@ from .llm_service import generate_llm_answer
 from .question_patterns import QuestionIntent, classify_question
 from .scraper import fetch_url_text
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOOKS_DIR = os.getenv("BOOKS_DIR", "books")
