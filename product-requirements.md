@@ -14,6 +14,7 @@ Barbooks AI is a backend application that uses an AI agent to validate answers t
 - When a correct individual answer is provided, the agent validates and states the position (e.g., "Correct! That's the Nth team on the list.")
 - Results are not saved beyond the current session
 - Backend uses spreadsheets as a database for book content and answer links
+- AI agent chat responses must be logged for monitoring and observability purposes
 
 ## Example
 

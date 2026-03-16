@@ -79,7 +79,9 @@ async def chat_endpoint(request: ChatRequest):
         request.book_id, request.page_id, request.user_message
     )
     if det_answer:
-        return ChatResponse(answer=det_answer, source="deterministic")
+        response = ChatResponse(answer=det_answer, source="deterministic")
+        logger.info("Returning response: %s", response.model_dump_json())
+        return response
 
     # 2. Look up context from startup cache
     key = (request.book_id, request.page_id)
@@ -87,19 +89,25 @@ async def chat_endpoint(request: ChatRequest):
     if context is None:
         target_url = spreadsheet_store.get_page_url(request.book_id, request.page_id)
         if not target_url:
-            return ChatResponse(
+            response = ChatResponse(
                 answer="I don't have any information for that book or page.",
                 source="system",
             )
+            logger.info("Returning response: %s", response.model_dump_json())
+            return response
         context = await fetch_url_text(target_url)
         if context.startswith("Error"):
             logger.error("Failed to fetch context on-demand: %s", context)
-            return ChatResponse(
+            response = ChatResponse(
                 answer="I encountered an error trying to read the book's context.",
                 source="system",
             )
+            logger.info("Returning response: %s", response.model_dump_json())
+            return response
         _context_cache[key] = context
 
     # 3. Fallback to LLM
     llm_answer = await generate_llm_answer(context, request.user_message)
-    return ChatResponse(answer=llm_answer, source="llm")
+    response = ChatResponse(answer=llm_answer, source="llm")
+    logger.info("Returning response: %s", response.model_dump_json())
+    return response
