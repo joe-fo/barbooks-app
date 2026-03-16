@@ -7,17 +7,21 @@ API_URL = os.getenv("API_URL", "http://localhost:8000/api/v1/chat")
 _API_BASE = API_URL.removesuffix("/api/v1/chat")
 
 # Read routing params from URL query string (e.g. ?book_id=nfl&page_id=9)
+# Default to NFL book page 1 if params are absent
+_DEFAULT_BOOK_ID = "nfl"
+_DEFAULT_PAGE_ID = "1"
+
 params = st.query_params
-book_id = params.get("book_id")
-page_id = params.get("page_id")
+book_id = params.get("book_id") or _DEFAULT_BOOK_ID
+page_id = params.get("page_id") or _DEFAULT_PAGE_ID
+
+# Reflect defaults back into the URL so the page is shareable/bookmarkable
+if params.get("book_id") != book_id or params.get("page_id") != page_id:
+    st.query_params["book_id"] = book_id
+    st.query_params["page_id"] = page_id
 
 st.set_page_config(page_title="Barbooks AI", page_icon="🏈")
 st.title("Barbooks AI Agent 🏈")
-
-# Validate required params
-if not book_id or not page_id:
-    st.error("No trivia page specified. Please scan a valid QR code to continue.")
-    st.stop()
 
 # Fetch page info to display the trivia question prominently
 _page_ok = False
@@ -32,10 +36,7 @@ try:
             st.caption(f"Category: {page_data['category']}")
         _page_ok = True
     elif page_resp.status_code == 404:
-        st.error(
-            f'Page not found: Book "{book_id}", Page "{page_id}".'
-            " Please scan a valid QR code."
-        )
+        st.error("Invalid page — please scan a valid QR code.")
         st.stop()
     else:
         st.warning("Could not load page info. You can still ask questions below.")
