@@ -1,6 +1,17 @@
 """Canonical domain models for Barbooks."""
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
+
+# Patterns that indicate prompt injection attempts.
+# Newline-prefixed role headers and model-specific control tokens are the most
+# common vectors for instructing an LLM to override its system prompt.
+_INJECTION_PATTERNS = re.compile(
+    r"\n\s*(system|assistant|user)\s*:",
+    re.IGNORECASE,
+)
+_INJECTION_TOKENS = re.compile(r"<\|im_(start|end)\|>")
 
 
 class LineItemAnswer(BaseModel):
@@ -71,9 +82,28 @@ class Book(BaseModel):
 class ChatRequest(BaseModel):
     """The incoming user request — chat message plus the scanned book/page context."""
 
-    user_message: str = Field(..., max_length=150, description="The user's query")
+    # 500 chars: trivia questions are short, but users occasionally ask multi-part
+    # questions or paste long team/player names.  150 was too tight in practice;
+    # 500 covers real usage while still bounding LLM prompt size meaningfully.
+    user_message: str = Field(..., max_length=500, description="The user's query")
     book_id: str = Field(..., description="ID of the book")
     page_id: str = Field(..., description="ID of the target page")
+
+    @field_validator("user_message")
+    @classmethod
+    def reject_injection_markers(cls, v: str) -> str:
+        """Reject inputs that contain common prompt-injection markers.
+
+        Blocks newline-prefixed role headers (``\\nSystem:``, ``\\nAssistant:``,
+        ``\\nUser:``) and model-specific control tokens (``<|im_start|>``,
+        ``<|im_end|>``).  These patterns have no legitimate use in a trivia
+        query and are the primary vectors for overriding an LLM system prompt.
+        """
+        if _INJECTION_PATTERNS.search(v) or _INJECTION_TOKENS.search(v):
+            raise ValueError(
+                "Input contains disallowed content. Please rephrase your question."
+            )
+        return v
 
 
 class ChatResponse(BaseModel):

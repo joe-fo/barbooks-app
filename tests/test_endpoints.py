@@ -80,25 +80,25 @@ class TestChatEndpointValidation:
         )
         assert response.status_code == 422
 
-    def test_message_over_150_chars_returns_422(self, client):
+    def test_message_over_500_chars_returns_422(self, client):
         response = client.post(
             "/api/v1/chat",
             json={
-                "user_message": "x" * 151,
+                "user_message": "x" * 501,
                 "book_id": "nfl",
                 "page_id": "9",
             },
         )
         assert response.status_code == 422
 
-    def test_message_exactly_150_chars_succeeds(self, client):
+    def test_message_exactly_500_chars_succeeds(self, client):
         with (
             patch("app.main.mock_db.deterministic_match", return_value="Yes!"),
         ):
             response = client.post(
                 "/api/v1/chat",
                 json={
-                    "user_message": "x" * 150,
+                    "user_message": "x" * 500,
                     "book_id": "nfl",
                     "page_id": "9",
                 },
