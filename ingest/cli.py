@@ -3,7 +3,7 @@
 Validates source data before spreadsheet entry.
 
 Usage:
-    python ingest.py --url <url> --book <book_id> --page <page_id> \\
+    python -m ingest --url <url> --book <book_id> --page <page_id> \\
         [--write] [--books-dir <path>]
 
 Fetches the given URL, parses structured data (ranked lists, stats tables),

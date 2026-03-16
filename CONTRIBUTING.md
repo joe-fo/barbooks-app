@@ -66,7 +66,7 @@ Browser → POST /api/v1/admin/add-page
 ```
 
 The admin endpoints reuse the same scraping and parsing logic as the
-`ingest.py` CLI tool, so the data is validated the same way.
+`ingest/` CLI tool, so the data is validated the same way.
 
 ---
 
@@ -93,7 +93,7 @@ accept any (including blank) password.
 | Problem | Likely cause | Fix |
 |---------|-------------|-----|
 | Preview shows "no items parsed" | The URL doesn't contain a recognized ranked list or stats table | Try the ESPN or Wikipedia URL that lists the data in a table |
-| "Failed to fetch URL" error | The source site blocked the request | Try a different source URL or run the CLI tool (`python ingest.py`) |
+| "Failed to fetch URL" error | The source site blocked the request | Try a different source URL or run the CLI tool (`python -m ingest`) |
 | "No spreadsheet found for book" | The `books/<book_id>/` directory is missing or has no `.xlsx` file | Create the directory and add a spreadsheet, or check the Book ID |
 | 401 Unauthorized | Wrong admin password | Ask the project owner for the password |
 
@@ -101,15 +101,15 @@ accept any (including blank) password.
 
 ## Alternative: CLI Tool
 
-If you're comfortable with a terminal, the `ingest.py` CLI offers the same
+If you're comfortable with a terminal, the `ingest/` CLI offers the same
 validation with more detail:
 
 ```bash
 # Preview (dry run)
-python ingest.py --url <url> --book nfl --page 10 --patterns
+python -m ingest --url <url> --book nfl --page 10 --patterns
 
 # Write to spreadsheet (interactive confirmation)
-python ingest.py --url <url> --book nfl --page 10 --write
+python -m ingest --url <url> --book nfl --page 10 --write
 ```
 
-See `python ingest.py --help` for all options.
+See `python -m ingest --help` for all options.

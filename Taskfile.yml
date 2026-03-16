@@ -33,6 +33,11 @@ tasks:
     cmds:
       - poetry run pytest tests/integration/ -v
 
+  ingest:
+    desc: "Run the ingest CLI (usage: task ingest -- --url <url> --book <id> --page <n>)"
+    cmds:
+      - poetry run python -m ingest {{.CLI_ARGS}}
+
   lint:
     desc: Run Ruff linter and formatter check
     cmds:
