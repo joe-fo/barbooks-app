@@ -8,7 +8,7 @@ import httpx
 from .domain import AnswerSource, ChatRequest, Page
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
-DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "phi3:mini")
 
 
 def _build_system_prompt(context: str, page: Optional[Page]) -> str:
