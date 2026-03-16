@@ -4,10 +4,11 @@ Validates source data before spreadsheet entry.
 
 Usage:
     python -m ingest --url <url> --book <book_id> --page <page_id> \\
-        [--write] [--books-dir <path>]
+        [--write] [--books-dir <path>] [--refresh]
 
-Fetches the given URL, parses structured data (ranked lists, stats tables),
-previews the resulting Page record, and optionally writes it to the spreadsheet.
+Fetches the given URL (via page cache), parses structured data (ranked lists,
+stats tables), previews the resulting Page record, and optionally writes it to
+the spreadsheet.  Pass --refresh to force a live re-fetch and overwrite the cache.
 """
 
 from __future__ import annotations
@@ -376,6 +377,37 @@ def _write_page_to_spreadsheet(page: Page, xlsx_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _build_page_from_cache_result(
+    url: str,
+    book_id: str,
+    page_id: str,
+    text: str,
+    raw_items: list,
+) -> Page:
+    """Build a Page domain object from page_cache.get_or_fetch() results."""
+    from app.domain.models import PageItem
+
+    page_items: list[PageItem] = [
+        PageItem(**item) if isinstance(item, dict) else item for item in raw_items
+    ]
+    stat_label = page_items[0].stat_label if page_items else ""
+    clue_type = "rank" if any(item.rank for item in page_items) else ""
+    title = next((line.strip() for line in text.splitlines() if line.strip()), "")
+
+    return Page(
+        page_id=page_id,
+        url=url,
+        title=title,
+        description=f"Parsed from {url}",
+        type="list",
+        clue_style=f"{len(page_items)} items" if page_items else "",
+        clue_type=clue_type,
+        item_count=len(page_items),
+        stat_label=stat_label,
+        items=page_items,
+    )
+
+
 async def _run(args: argparse.Namespace) -> None:
     url = args.url
     book_id = args.book
@@ -383,16 +415,24 @@ async def _run(args: argparse.Namespace) -> None:
     books_dir = args.books_dir
     write = args.write
     show_patterns = args.patterns
+    refresh = args.refresh
 
-    print(f"Fetching {url} ...")
+    from app.page_cache import get_or_fetch
+
+    cache_label = " (force-refresh)" if refresh else ""
+    print(f"Fetching {url}{cache_label} ...")
     try:
-        html = await _fetch_html(url)
-    except httpx.HTTPError as exc:
+        text, raw_items = await get_or_fetch(book_id, page_id, url, refresh=refresh)
+    except Exception as exc:
         print(f"ERROR: Failed to fetch URL: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    if text.startswith("Error"):
+        print(f"ERROR: {text}", file=sys.stderr)
+        sys.exit(1)
+
     print(f"Parsing data for book={book_id!r}, page={page_id!r} ...")
-    page = parse_page_data(url, book_id, page_id, html)
+    page = _build_page_from_cache_result(url, book_id, page_id, text, raw_items)
 
     _preview_page(page)
 
@@ -449,6 +489,11 @@ def main() -> None:
         "--patterns",
         action="store_true",
         help="Also print suggested short-circuit regex patterns for the answer list",
+    )
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Force a live re-fetch, bypassing the cache TTL",
     )
 
     args = parser.parse_args()
