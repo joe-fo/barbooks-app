@@ -7,6 +7,7 @@ from .models import (
     ChatResponse,
     LineItemAnswer,
     Page,
+    PageItem,
     QRCodeRef,
 )
 from .ports import AnswerSource
@@ -19,5 +20,6 @@ __all__ = [
     "ChatResponse",
     "LineItemAnswer",
     "Page",
+    "PageItem",
     "QRCodeRef",
 ]

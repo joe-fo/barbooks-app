@@ -6,7 +6,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .domain import Book, Page
+from .domain import Book, Page, PageItem
 
 
 def _extract_answer_count(title: str) -> int:
@@ -92,10 +92,17 @@ def get_page_url(book_id: str, page_id: str) -> Optional[str]:
 
 
 def update_page_items(book_id: str, page_id: str, items: list) -> None:
-    """Attach parsed items to an existing Page (called after startup URL fetch)."""
+    """Attach parsed items to an existing Page (called after startup URL fetch).
+
+    Items may arrive as plain dicts (e.g. deserialized from JSON cache) or as
+    PageItem instances (live scraper path). Both are accepted; dicts are coerced.
+    """
     book = _books.get(book_id)
     if book and page_id in book.pages:
-        book.pages[page_id].items = items
+        coerced = [
+            PageItem(**item) if isinstance(item, dict) else item for item in items
+        ]
+        book.pages[page_id].items = coerced
 
 
 def all_pages() -> list[tuple[str, str, str]]:

@@ -430,6 +430,54 @@ class TestChatEndpointStructuredShortCircuit:
         data = response.json()
         assert len(data["answer"]["items"]) == 4
 
+    def test_reveal_with_dict_items_returns_200(self, client):
+        """REVEAL must not crash when page.items contains plain dicts from JSON cache.
+
+        Regression test for ba-s0q: cache deserialization left items as dicts,
+        causing AttributeError on i.rank in the REVEAL branch.
+        """
+        page = Page(
+            page_id="15",
+            url="http://example.com",
+            title="NFL Touchdown Leaders",
+            description="",
+            type="list",
+        )
+        # Simulate the broken state: items stored as dicts (bypasses Pydantic coercion)
+        page.items = [  # type: ignore[assignment]
+            {
+                "rank": 1,
+                "key": "#1",
+                "name": "Jerry Rice",
+                "stat_value": "208",
+                "stat_label": "TDs",
+            },
+            {
+                "rank": 2,
+                "key": "#2",
+                "name": "Emmitt Smith",
+                "stat_value": "175",
+                "stat_label": "TDs",
+            },
+        ]
+        with patch("app.main.spreadsheet_store.get_page", return_value=page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Show me the answers",
+                    "book_id": "nfl",
+                    "page_id": "15",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        items = data["answer"]["items"]
+        assert len(items) == 2
+        assert items[0]["rank"] == 1
+        assert items[0]["name"] == "Jerry Rice"
+
     def test_reveal_falls_through_when_no_items(self, client):
         empty_page = Page(
             page_id="9",

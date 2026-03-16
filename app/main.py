@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from . import mock_db, page_cache, spreadsheet_store
 from .admin import router as admin_router
-from .domain import AnswerKey, ChatRequest, ChatResponse, LineItemAnswer
+from .domain import AnswerKey, ChatRequest, ChatResponse, LineItemAnswer, PageItem
 from .llm_service import generate_llm_answer
 from .question_patterns import QuestionIntent, classify_question
 from .scraper import fetch_url_text
@@ -125,8 +125,11 @@ async def chat_endpoint(request: ChatRequest):
     # 1a. RANK_LOOKUP — "who is #N?" → return LineItemAnswer if page data available
     if intent == QuestionIntent.RANK_LOOKUP:
         if page and page.items:
+            page_items = [
+                PageItem(**i) if isinstance(i, dict) else i for i in page.items
+            ]
             rank = int(params.get("rank", 0))
-            item = next((i for i in page.items if i.rank == rank), None)
+            item = next((i for i in page_items if i.rank == rank), None)
             if item:
                 line_item = LineItemAnswer(
                     rank=item.rank,
@@ -150,11 +153,14 @@ async def chat_endpoint(request: ChatRequest):
             logger.info("REVEAL blocked by BARBOOKS_ALLOW_REVEAL=false")
             return response
         if page and page.items:
-            items_to_reveal = page.items
+            page_items = [
+                PageItem(**i) if isinstance(i, dict) else i for i in page.items
+            ]
+            items_to_reveal = page_items
             if page.answer_count > 0:
                 items_to_reveal = [
                     i
-                    for i in page.items
+                    for i in page_items
                     if i.rank is not None and i.rank <= page.answer_count
                 ]
             answer_key = AnswerKey(
