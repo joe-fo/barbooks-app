@@ -17,8 +17,14 @@ def _build_system_prompt(context: str, page: Optional[Page]) -> str:
         title_line = page.title or "a trivia list"
         desc_line = f"\n{page.description}" if page.description else ""
 
+        items = page.items
+        if page.answer_count > 0:
+            items = [
+                i for i in items if i.rank is not None and i.rank <= page.answer_count
+            ]
+
         list_lines = []
-        for item in page.items:
+        for item in items:
             stat_part = (
                 f" ({item.stat_value} {item.stat_label})" if item.stat_value else ""
             )

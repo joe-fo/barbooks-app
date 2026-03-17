@@ -77,3 +77,30 @@ class TestBuildSystemPromptWithItems:
         """Raw scraped text not in prompt when structured list is available."""
         prompt = _build_system_prompt("raw context sentinel xyz", page=page_with_items)
         assert "raw context sentinel xyz" not in prompt
+
+    def test_answer_count_truncates_ranked_list(self):
+        """LLM prompt only includes items up to answer_count when set."""
+
+        def _item(rank, name):
+            return PageItem(
+                rank=rank, key=f"#{rank}", name=name, stat_value="", stat_label=""
+            )
+
+        page = Page(
+            page_id="5",
+            url="",
+            title="Top 3 Career Passing Yards",
+            description="",
+            answer_count=3,
+            items=[_item(i, f"Player {i}") for i in range(1, 6)],
+        )
+        prompt = _build_system_prompt("ctx", page=page)
+        assert "Player 1" in prompt
+        assert "Player 3" in prompt
+        assert "Player 4" not in prompt
+        assert "Player 5" not in prompt
+
+    def test_answer_count_zero_includes_all_items(self, page_with_items):
+        """answer_count=0 means no restriction — all items are included."""
+        prompt = _build_system_prompt("ctx", page=page_with_items)
+        assert "Drew Bledsoe" in prompt  # rank 6, beyond any top-N restriction
