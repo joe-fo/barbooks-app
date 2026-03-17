@@ -1,13 +1,29 @@
 version: '3'
 
-# NOTE: Ollama must be running separately before starting the API.
-# Install Ollama from https://ollama.com and run: ollama pull phi3:mini
-
 tasks:
   install:
     desc: Install Python dependencies (including dev tools)
     cmds:
       - poetry install
+
+  llm:
+    desc: Start Ollama server and ensure phi3:mini model is available
+    cmds:
+      - |
+        if ! pgrep -x ollama > /dev/null; then
+          ollama serve &
+          echo "Waiting for Ollama to start..."
+          for i in $(seq 1 30); do
+            if curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then
+              echo "Ollama is ready."
+              break
+            fi
+            sleep 1
+          done
+        else
+          echo "Ollama already running."
+        fi
+      - ollama pull phi3:mini
 
   api:
     desc: Start the FastAPI backend server on :8000
@@ -20,8 +36,10 @@ tasks:
       - poetry run streamlit run app/app.py --server.port 8501
 
   dev:
-    desc: Run both the API and UI concurrently
-    deps: [api, ui]
+    desc: Run Ollama LLM, API, and UI concurrently
+    cmds:
+      - task: llm
+      - task --parallel api ui
 
   test:
     desc: Run the unit test suite
@@ -51,7 +69,8 @@ tasks:
       - echo "Page cache cleared."
 
   stop:
-    desc: Stop the API and UI processes
+    desc: Stop the API, UI, and Ollama processes
     cmds:
       - pkill -f "uvicorn app.main:app" || true
       - pkill -f "streamlit run" || true
+      - pkill -x ollama || true
