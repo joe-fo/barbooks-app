@@ -15,8 +15,6 @@ import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from .domain.models import LineItemAnswer
-
 logger = logging.getLogger(__name__)
 
 CACHE_DIR = os.getenv("BARBOOKS_CACHE_DIR", "cache/pages")
@@ -24,9 +22,26 @@ CACHE_TTL_HOURS = int(os.getenv("BARBOOKS_CACHE_TTL_HOURS", "24"))
 CACHE_MODE = os.getenv("BARBOOKS_CACHE_MODE", "normal")  # "normal" | "offline"
 
 
-def _deserialize_items(raw: list) -> list[LineItemAnswer]:
-    """Coerce each dict to LineItemAnswer; pass through existing instances."""
-    return [LineItemAnswer(**i) if isinstance(i, dict) else i for i in raw]
+def _deserialize_items(raw: list) -> list:
+    """Coerce each dict to PageItem with name cleaning; pass through existing instances.
+
+    Cache files are written as PageItem dicts (rank, key, name, stat_value,
+    stat_label).  Applying _clean_name here ensures that stale cache entries
+    written before the name-deduplication fix are transparently cleaned on read.
+    """
+    from .domain.models import PageItem
+    from .scraper import _clean_name
+
+    result = []
+    for i in raw:
+        if isinstance(i, dict):
+            cleaned = dict(i)
+            if "name" in cleaned:
+                cleaned["name"] = _clean_name(cleaned["name"])
+            result.append(PageItem(**cleaned))
+        else:
+            result.append(i)
+    return result
 
 
 def _cache_path(book_id: str, page_id: str) -> Path:
