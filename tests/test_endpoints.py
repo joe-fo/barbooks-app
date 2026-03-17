@@ -478,6 +478,110 @@ class TestChatEndpointStructuredShortCircuit:
         assert items[0]["rank"] == 1
         assert items[0]["name"] == "Jerry Rice"
 
+    def test_existence_player_not_on_list(self, client, page_with_items):
+        """EXISTENCE for absent player returns 'not on the list' from short-circuit."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is Giannis Antetokounmpo on the list?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert "not on the list" in data["answer"]
+
+    def test_existence_player_on_list(self, client, page_with_items):
+        """EXISTENCE for present player returns rank confirmation."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is Jerry Rice on the list?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert "Jerry Rice" in data["answer"]
+        assert "#1" in data["answer"]
+
+    def test_existence_falls_through_when_no_items(self, client):
+        """EXISTENCE with no page items falls through to LLM."""
+        empty_page = Page(
+            page_id="9",
+            url="http://example.com",
+            title="NFL Touchdown Leaders",
+            description="",
+            type="list",
+            items=[],
+        )
+        with (
+            patch("app.main.spreadsheet_store.get_page", return_value=empty_page),
+            patch("app.main.mock_db.deterministic_match", return_value=None),
+            patch(
+                "app.main.generate_llm_answer",
+                new=AsyncMock(return_value="LLM fallback"),
+            ),
+        ):
+            from app.main import _context_cache
+
+            _context_cache[("nfl", "9")] = "some context"
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is Giannis on the list?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "llm"
+
+    def test_confirmation_player_not_on_list(self, client, page_with_items):
+        """CONFIRMATION for absent player returns 'No, [name] is not on the list.'"""
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is it Giannis Antetokounmpo?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert "not on the list" in data["answer"]
+
+    def test_confirmation_player_on_list(self, client, page_with_items):
+        """CONFIRMATION for present player returns Yes with rank."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is it Randy Moss?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert "Randy Moss" in data["answer"]
+        assert "#4" in data["answer"]
+
     def test_reveal_falls_through_when_no_items(self, client):
         empty_page = Page(
             page_id="9",

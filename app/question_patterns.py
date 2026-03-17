@@ -219,11 +219,11 @@ PATTERNS: list[PatternEntry] = [
         intent=QuestionIntent.EXISTENCE,
         alternatives=[
             r"\bis\s+(?P<name>.+?)\s+"
-            r"(?:on\s+(?:this\s+)?(?:list|page)|in\s+(?:this|here)|here|included)\b",
+            r"(?:on\s+(?:this\s+|the\s+)?(?:list|page)|in\s+(?:this|here)|here|included)\b",
             r"\bdoes\s+(?P<name>.+?)\s+"
             r"(?:appear|show\s+up|make\s+(?:the\s+)?(?:list|cut))\b",
             r"\b(?P<name>.+?)\s+"
-            r"(?:on\s+(?:this\s+)?(?:list|page)|in\s+(?:the\s+)?top)\b",
+            r"(?:on\s+(?:this\s+|the\s+)?(?:list|page)|in\s+(?:the\s+)?top)\b",
         ],
         group_names=["name"],
     ),

@@ -168,8 +168,8 @@ class TestLLMFallback:
     """Requests that miss the short-circuit fall through to the Ollama adapter."""
 
     async def test_unmatched_query_reaches_llm(self, integration_client):
-        """Query with no deterministic match → Ollama stub called → source='llm'."""
-        llm_content = "Yes, he is on the list with 130 TDs."
+        """Open-ended query with no short-circuit match → Ollama stub → source='llm'."""
+        llm_content = "Jerry Rice leads with 208 career touchdowns."
         with patch(
             "app.llm_service.httpx.AsyncClient",
             return_value=make_ollama_mock(llm_content),
@@ -177,7 +177,7 @@ class TestLLMFallback:
             response = await integration_client.post(
                 "/api/v1/chat",
                 json={
-                    "user_message": "Is Marcus Allen on the list?",
+                    "user_message": "Who has the most touchdowns all time?",
                     "book_id": "nfl",
                     "page_id": "9",
                 },
@@ -189,7 +189,7 @@ class TestLLMFallback:
 
     async def test_llm_response_within_token_limits(self, integration_client):
         """LLM stub returns a short answer matching the num_predict=50 cap."""
-        short_answer = "Yes, with 162 TDs."
+        short_answer = "Jerry Rice leads with 208 TDs."
         with patch(
             "app.llm_service.httpx.AsyncClient",
             return_value=make_ollama_mock(short_answer),
@@ -197,7 +197,7 @@ class TestLLMFallback:
             response = await integration_client.post(
                 "/api/v1/chat",
                 json={
-                    "user_message": "Is LaDainian Tomlinson on the list?",
+                    "user_message": "Who has the most touchdowns all time?",
                     "book_id": "nfl",
                     "page_id": "9",
                 },

@@ -141,7 +141,39 @@ async def chat_endpoint(request: ChatRequest):
                 logger.info("Returning response: %s", response.model_dump_json())
                 return response
 
-    # 1b. REVEAL — "show me the answers"
+    # 1b. EXISTENCE — "is [name] on this list?" / "does [name] appear here?"
+    if intent == QuestionIntent.EXISTENCE:
+        name = params.get("name", "")
+        if name and page and page.items:
+            page_items = [
+                PageItem(**i) if isinstance(i, dict) else i for i in page.items
+            ]
+            item = next((i for i in page_items if i.name.lower() == name.lower()), None)
+            if item is not None:
+                answer = f"Yes, {item.name} is on the list at #{item.rank}."
+            else:
+                answer = f"{name} is not on the list."
+            response = ChatResponse(answer=answer, source="short_circuit")
+            logger.info("Returning response: %s", response.model_dump_json())
+            return response
+
+    # 1c. CONFIRMATION — "is it [name]?" / "[name]?"
+    if intent == QuestionIntent.CONFIRMATION:
+        name = params.get("name", "")
+        if name and page and page.items:
+            page_items = [
+                PageItem(**i) if isinstance(i, dict) else i for i in page.items
+            ]
+            item = next((i for i in page_items if i.name.lower() == name.lower()), None)
+            if item is not None:
+                answer = f"Yes! {item.name} is on the list at #{item.rank}."
+            else:
+                answer = f"No, {name} is not on the list."
+            response = ChatResponse(answer=answer, source="short_circuit")
+            logger.info("Returning response: %s", response.model_dump_json())
+            return response
+
+    # 1d. REVEAL — "show me the answers"
     # Gated by BARBOOKS_ALLOW_REVEAL (default: true for PoC).
     # Set BARBOOKS_ALLOW_REVEAL=false for hosted games where the host controls reveals.
     if intent == QuestionIntent.REVEAL:
