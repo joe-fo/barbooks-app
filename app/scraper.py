@@ -127,6 +127,25 @@ def _parse_items_from_soup(soup: BeautifulSoup) -> list:
     return []
 
 
+_BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        " (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+}
+
+
 async def fetch_url_content(url: str) -> tuple[str, list]:
     """Fetch URL once; return ``(text_context, parsed_items)``.
 
@@ -135,14 +154,8 @@ async def fetch_url_content(url: str) -> tuple[str, list]:
     Returns ``("Error ...", [])`` on failure.
     """
     try:
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                " (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            )
-        }
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(url, headers=headers, timeout=10.0)
+            response = await client.get(url, headers=_BROWSER_HEADERS, timeout=10.0)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.content, "html.parser")
@@ -170,15 +183,8 @@ async def fetch_url_text(url: str) -> str:
     Returns the plain text, or an error message if fetching fails.
     """
     try:
-        # Some sites block requests without a standard User-Agent
-        headers = {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-                " (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            )
-        }
         async with httpx.AsyncClient(follow_redirects=True) as client:
-            response = await client.get(url, headers=headers, timeout=10.0)
+            response = await client.get(url, headers=_BROWSER_HEADERS, timeout=10.0)
             response.raise_for_status()
 
             # Parse HTML and extract text
