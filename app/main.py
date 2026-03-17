@@ -129,6 +129,13 @@ async def chat_endpoint(request: ChatRequest):
                 PageItem(**i) if isinstance(i, dict) else i for i in page.items
             ]
             rank = int(params.get("rank", 0))
+            # Check boundary: if the requested rank is outside the question scope,
+            # tell the user instead of returning an out-of-scope item.
+            if page.answer_count > 0 and rank > page.answer_count:
+                answer = f"The question only covers the top {page.answer_count}."
+                response = ChatResponse(answer=answer, source="short_circuit")
+                logger.info("Returning response: %s", response.model_dump_json())
+                return response
             item = next((i for i in page_items if i.rank == rank), None)
             if item:
                 line_item = LineItemAnswer(
@@ -150,7 +157,16 @@ async def chat_endpoint(request: ChatRequest):
             ]
             item = next((i for i in page_items if i.name.lower() == name.lower()), None)
             if item is not None:
-                answer = f"Yes, {item.name} is on the list at #{item.rank}."
+                in_scope = page.answer_count == 0 or (
+                    item.rank is not None and item.rank <= page.answer_count
+                )
+                if in_scope:
+                    answer = f"Yes, {item.name} is on the list at #{item.rank}."
+                else:
+                    answer = (
+                        f"No, {item.name} is not in the top {page.answer_count}. "
+                        f"They rank #{item.rank} overall."
+                    )
             else:
                 answer = f"{name} is not on the list."
             response = ChatResponse(answer=answer, source="short_circuit")
@@ -166,7 +182,16 @@ async def chat_endpoint(request: ChatRequest):
             ]
             item = next((i for i in page_items if i.name.lower() == name.lower()), None)
             if item is not None:
-                answer = f"Yes! {item.name} is on the list at #{item.rank}."
+                in_scope = page.answer_count == 0 or (
+                    item.rank is not None and item.rank <= page.answer_count
+                )
+                if in_scope:
+                    answer = f"Yes! {item.name} is on the list at #{item.rank}."
+                else:
+                    answer = (
+                        f"No, {item.name} is not in the top {page.answer_count}. "
+                        f"They rank #{item.rank} overall."
+                    )
             else:
                 answer = f"No, {name} is not on the list."
             response = ChatResponse(answer=answer, source="short_circuit")

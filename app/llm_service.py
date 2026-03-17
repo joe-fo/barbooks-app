@@ -25,9 +25,19 @@ def _build_system_prompt(context: str, page: Optional[Page]) -> str:
             list_lines.append(f"  {item.key}: {item.name}{stat_part}")
         ranked_list = "\n".join(list_lines)
 
+        boundary_note = ""
+        if page.answer_count > 0:
+            boundary_note = (
+                f"The trivia question covers only the top {page.answer_count} players. "
+                f"Items beyond rank {page.answer_count} are out of scope. "
+                "NEVER confirm a player as 'on the list' if their rank exceeds "
+                f"{page.answer_count}.\n\n"
+            )
+
         return (
             "You are a terse trivia assistant for this page: "
             f"{title_line}.{desc_line}\n\n"
+            f"{boundary_note}"
             "Answer using ONLY the ranked list below. "
             "NEVER invent or assume facts not in the list. "
             "If the answer is not in the list, reply exactly: 'I don't know.'\n\n"

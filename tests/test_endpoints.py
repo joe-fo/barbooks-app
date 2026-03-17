@@ -582,6 +582,144 @@ class TestChatEndpointStructuredShortCircuit:
         assert "Randy Moss" in data["answer"]
         assert "#4" in data["answer"]
 
+    # ------------------------------------------------------------------
+    # Question-boundary tests (answer_count enforcement)
+    # ------------------------------------------------------------------
+
+    @pytest.fixture
+    def top10_page(self):
+        """A Top 10 page with 12 items — ranks 11 and 12 are out of scope."""
+        items = [
+            PageItem(
+                rank=i,
+                name=f"Player {i}",
+                stat_value=str(200 - i * 5),
+                stat_label="yards",
+            )
+            for i in range(1, 13)
+        ]
+        # Give rank 11 a realistic name for the existence tests
+        items[10] = PageItem(
+            rank=11, name="Jalen Hurts", stat_value="50000", stat_label="yards"
+        )
+        return Page(
+            page_id="top10",
+            url="http://example.com",
+            title="Top 10 Career Passing Yards in the NFC East",
+            description="",
+            type="list",
+            answer_count=10,
+            items=items,
+        )
+
+    def test_rank_lookup_within_boundary_returns_item(self, client, top10_page):
+        """RANK_LOOKUP for rank 10 on a Top 10 page returns the item."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=top10_page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Who is #10?",
+                    "book_id": "nfl",
+                    "page_id": "top10",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert data["answer"]["rank"] == 10
+
+    def test_rank_lookup_beyond_boundary_returns_boundary_message(
+        self, client, top10_page
+    ):
+        """RANK_LOOKUP for rank 11 on a Top 10 page returns boundary message."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=top10_page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Who is #11?",
+                    "book_id": "nfl",
+                    "page_id": "top10",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert isinstance(data["answer"], str)
+        assert "top 10" in data["answer"].lower()
+
+    def test_existence_player_within_boundary_returns_yes(self, client, top10_page):
+        """EXISTENCE for a player ranked within answer_count returns Yes."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=top10_page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is Player 5 on the list?",
+                    "book_id": "nfl",
+                    "page_id": "top10",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert data["answer"].startswith("Yes")
+
+    def test_existence_player_beyond_boundary_returns_no_with_rank(
+        self, client, top10_page
+    ):
+        """EXISTENCE beyond answer_count returns No + overall rank."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=top10_page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is Jalen Hurts on the list?",
+                    "book_id": "nfl",
+                    "page_id": "top10",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        answer = data["answer"]
+        assert answer.startswith("No")
+        assert "top 10" in answer
+        assert "#11" in answer
+
+    def test_confirmation_player_beyond_boundary_returns_no(self, client, top10_page):
+        """CONFIRMATION beyond answer_count returns No + overall rank."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=top10_page):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is it Jalen Hurts?",
+                    "book_id": "nfl",
+                    "page_id": "top10",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        answer = data["answer"]
+        assert answer.startswith("No")
+        assert "top 10" in answer
+        assert "#11" in answer
+
+    def test_existence_answer_count_zero_uses_full_list(self, client, page_with_items):
+        """EXISTENCE with answer_count=0 confirms players at any rank."""
+        with patch("app.main.spreadsheet_store.get_page", return_value=page_with_items):
+            response = client.post(
+                "/api/v1/chat",
+                json={
+                    "user_message": "Is Randy Moss on the list?",
+                    "book_id": "nfl",
+                    "page_id": "9",
+                },
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["source"] == "short_circuit"
+        assert data["answer"].startswith("Yes")
+        assert "#4" in data["answer"]
+
     def test_reveal_falls_through_when_no_items(self, client):
         empty_page = Page(
             page_id="9",
