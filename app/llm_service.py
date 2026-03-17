@@ -1,11 +1,14 @@
 """LLM service layer using hexagonal architecture (port/adapter pattern)."""
 
+import logging
 import os
 from typing import Optional
 
 import httpx
 
 from .domain import AnswerSource, ChatRequest, Page
+
+logger = logging.getLogger(__name__)
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/chat")
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "phi3:mini")
@@ -110,7 +113,15 @@ class OllamaAdapter(AnswerSource):
                 data = response.json()
                 return data.get("message", {}).get("content", "").strip() or None
         except Exception as e:
-            return f"Error connecting to local LLM: {e}"
+            detail = str(e) or repr(e)
+            logger.error(
+                "LLM request failed [%s]: %r (url=%s model=%s)",
+                type(e).__name__,
+                e,
+                self._base_url,
+                self._model,
+            )
+            return f"Error connecting to local LLM: {type(e).__name__}: {detail}"
 
 
 # Module-level default adapter — main.py uses this convenience wrapper.
