@@ -241,6 +241,9 @@ PATTERNS: list[PatternEntry] = [
             # bare name as question: "Randy Moss?" — only matches 1-3 word names
             # to avoid false positives
             r"^(?P<name>\w+(?:\s+\w+){0,2})\s*\?\s*$",
+            # bare name without "?": "patrick mahomes" — treat as a guess
+            # (1-3 word all-alpha input with no verb or question word)
+            r"^(?P<name>\w+(?:\s+\w+){0,2})\s*$",
         ],
         group_names=["name"],
     ),

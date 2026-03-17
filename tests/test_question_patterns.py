@@ -180,6 +180,18 @@ class TestConfirmation:
         assert intent == QuestionIntent.CONFIRMATION
         assert params["name"] == "Jerry Rice"
 
+    def test_bare_name_without_question_mark(self):
+        # "patrick mahomes" with no "?" or verb — treated as a guess
+        intent, params = classify_question("Patrick Mahomes")
+        assert intent == QuestionIntent.CONFIRMATION
+        assert params["name"] == "Patrick Mahomes"
+
+    def test_bare_name_lowercase(self):
+        # Lowercase bare names are also treated as guesses and title-cased
+        intent, params = classify_question("patrick mahomes")
+        assert intent == QuestionIntent.CONFIRMATION
+        assert params["name"] == "Patrick Mahomes"
+
 
 class TestUnknown:
     def test_open_ended_question(self):
@@ -194,8 +206,11 @@ class TestUnknown:
         assert intent == QuestionIntent.UNKNOWN
 
     def test_gibberish(self):
+        # Gibberish bare words now match as CONFIRMATION (treated as a name guess).
+        # The short-circuit will look them up and return "not on the list",
+        # which is better than the LLM echoing the input back.
         intent, params = classify_question("asdfghjkl qwerty")
-        assert intent == QuestionIntent.UNKNOWN
+        assert intent == QuestionIntent.CONFIRMATION
 
 
 class TestEdgeCases:
