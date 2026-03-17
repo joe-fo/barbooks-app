@@ -137,7 +137,9 @@ _BROWSER_HEADERS = {
         "image/avif,image/webp,*/*;q=0.8"
     ),
     "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
+    # Omit 'br' (Brotli): brotli/brotlicffi is not installed, so requesting
+    # Brotli causes servers to return compressed bytes that httpx cannot decode.
+    "Accept-Encoding": "gzip, deflate",
     "Upgrade-Insecure-Requests": "1",
     "Sec-Fetch-Dest": "document",
     "Sec-Fetch-Mode": "navigate",

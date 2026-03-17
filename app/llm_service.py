@@ -63,8 +63,13 @@ def _build_system_prompt(context: str, page: Optional[Page]) -> str:
             f"Ranked List:\n---\n{ranked_list}\n---"
         )
 
+    page_hint = ""
+    if page and page.title:
+        desc_line = f"\n{page.description}" if page.description else ""
+        page_hint = f" for this page: {page.title}.{desc_line}"
+
     return (
-        "You are a terse trivia assistant. "
+        f"You are a terse trivia assistant{page_hint} "
         "Answer using ONLY the information in the provided context. "
         "NEVER invent or assume facts not stated in the context. "
         "If the answer is not in the context, reply exactly: 'I don't know.'\n\n"
